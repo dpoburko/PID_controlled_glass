@@ -1,91 +1,266 @@
-//for wiring details of voltmeter see
-//https://www.digikey.ca/en/maker/projects/how-to-make-a-simple-digital-voltmeter-with-an-arduino/082dff9d725549aea8bf84a7e302c1b2
-//for thermistor details see 
-//https://learn.adafruit.com/thermistor/using-a-thermistor
+// For wiring details of voltmeter see:
+// https://www.digikey.ca/en/maker/projects/how-to-make-a-simple-digital-voltmeter-with-an-arduino/082dff9d725549aea8bf84a7e302c1b2
+// For thermistor details see:
+// https://learn.adafruit.com/thermistor/using-a-thermistor
 
-#define THERMISTORPIN A0         
-#define NUMsample0S 10 // how many sample0s to take and average0, more takes longer but is more 'smooth'
-#define THERMISTORNOMINAL 10000      // resistance at 25 degrees C
-#define TEMPERATURENOMINAL 25   // temp. for nominal resistance (almost always 25 C)
-#define BCOEFFICIENT 3435 // is dependent on the probe black Vishay from Digikey - NTCLE413E2103F102L = 3435
-#define SERIESRESISTOR 9985//10200    // the value of the 'other' resistor - 230501 - measured with AstroAI DM6000AR multimeter - difference between 5C (with series resistor) and A0 line at 21C and 0C - same value
-uint16_t sampleT0s[NUMsample0S];
-uint16_t sampleV0s[NUMsample0S];
-// The beta coefficient of the thermistor (usually 3000-4000)
+// PID control library (must be downloaded)
+#include <PID_v1.h>
+// Wire library (must be downloaded)
+#include <Wire.h>
 
-float input_voltage = 0.0;
-float temp=0.0;
-float r1=9810.0;
-float r2=983.0;
+// Thermistor pin
+#define THERMISTORPIN A0
+// Voltmeter pin
+#define VOLTMETERPIN A2
+// Thermistor resistance at 25 C         
+#define THERMISTORNOMINAL 10000
+// Temperature for nominal resistance (almost always 25 C)
+#define TEMPERATURENOMINAL 25
+// B coefficient for Steinhart equation (is dependent on the probe black Vishay from Digikey - NTCLE413E2103F102L = 3435)
+#define BCOEFFICIENT 3435
+// Value of the other resistor (230501 - measured with AstroAI DM6000AR multimeter - difference between 5 C (with series resistor) and A0 line at 21 C and 0 C - same value)
+#define SERIESRESISTOR 9985
+
+// Set glass temperature goal (in degrees Celsius)
+const double initialSetpoint = 37.0;
+
+// Set heater temperature limits (in degrees Celsius)
+const double aggressiveUpperHeaterOutputLimit = 55.0;
+const double conservativeUpperHeaterOutputLimit = 45.0;
+
+// Set PID constants (aggressive and conservative), these are arbitrary values for now
+const double aggressiveKp = 4, aggressiveKi = 0.2, aggressiveKd = 1;
+const double conservativeKp = 1, conservativeKi = 0.05, conservativeKd = 0.25;
+
+// R coefficients for Steinhart equation
+const float r1 = 9810.0;
+const float r2 = 983.0;
+
+// Set number of samples to take in order to get an average of the voltage and temperature data (more samples takes longer but is more smooth)
+const int numberOfSamples = 10;
+
+// Initialize glass temperature (in degrees Celsius) and heater output
+double glassTemperature = 0.0;
+double heaterOutput = 0.0;
+
+// Variable to store current heater temperature limit (in degrees Celsius)
+double currentUpperHeaterOutputLimit = 0.0;
+
+// Define PID variables (from PID library)
+double Setpoint, Input, Output;
+
+// Arrays to log tunable buck converter voltage data and thermistor voltage data
+uint16_t loggedThermistorVoltages[numberOfSamples];
+uint16_t loggedBuckConverterVoltages[numberOfSamples];
+
+// Create PID object (start with conservative tuning constants to be safe)
+PID myPID(&Input, &Output, &Setpoint, conservativeKp, conservativeKi, conservativeKd, DIRECT);
 
 void setup()
-{   
-Serial.begin(9600);     //  opens serial port, sets data rate to 9600 bps   
+{
+  // Open serial port, set data rate to 9600 bps
+  Serial.begin(9600);
 
-Serial.println("DIGITAL VOLTMETER");
+  // Delay helps fix serial glitch
+  delay(1000);
+
+  Serial.println("DIGITAL VOLTMETER");
+
+  // Initialize desired glass temperature
+  Setpoint = initialSetpoint;
+
+  // Initialize communication with I2C devices
+  Wire.begin();
+
+  // Turn the PID on
+  myPID.SetMode(AUTOMATIC);
+
+  // Start at conservative upper heater limit to be safe
+  currentUpperHeaterOutputLimit = conservativeUpperHeaterOutputLimit;
 }
 
 void loop() 
-{ 
-//Conversion formula    
-int analog_value = analogRead(A2);
-uint8_t i;
-float averageV;
-float average0;
-float steinhart0;
+{
+  // Get the voltage from the tunable buck converter
+  float buckConverterVoltage = GetBuckConverterVoltage();
 
+  // Get the voltage from the thermistor
+  float thermistorVoltage = GetThermistorVoltage();
 
-// take N sample0s in a row, with a slight delay
-for (i=0; i< NUMsample0S; i++) {
- sampleV0s[i] = analogRead(A2);
- delay(5);
-}
-
-// average0 all the sample0s out
-averageV = 0;
-
-for (i=0; i< NUMsample0S; i++) {
-   averageV += sampleV0s[i];
-}
-//analog_value /= NUMsample0S;
-averageV /= NUMsample0S;
-temp = (averageV * 5.0) / 1024.0;   
-//temp = (analog_value * 5.0) / 1024.0;   
-input_voltage = temp / (r2/(r1+r2));        
-if (input_voltage < 0.1)   
-{     
- input_voltage=0.0;    
-}
-   
- 
-// take N sample0s in a row, with a slight delay
-for (i=0; i< NUMsample0S; i++) {
- sampleT0s[i] = analogRead(THERMISTORPIN);
- delay(5);
-}
-
-// average0 all the sample0s out
-average0 = 0;
-for (i=0; i< NUMsample0S; i++) {
-   average0 += sampleT0s[i];
-}
-average0 /= NUMsample0S;
-
-// convert the value to resistance
-average0 = 1023 / average0 - 1;
-average0 = SERIESRESISTOR / average0;
-steinhart0 = average0 / THERMISTORNOMINAL;     // (R/Ro)
-steinhart0 = log(steinhart0);                  // ln(R/Ro)
-steinhart0 /= BCOEFFICIENT;                   // 1/B * ln(R/Ro)
-steinhart0 += 1.0 / (TEMPERATURENOMINAL + 273.150); // + (1/To)
-steinhart0 = 1.0 / steinhart0;                 // Invert
-steinhart0 -= 273.150;                         // convert to C
-
-Serial.print("v=");    
-Serial.print(input_voltage);    
-Serial.print("\tt=");    
-Serial.println(steinhart0);    
-
+  // Calculate the temperature using the Steinhart equation
+  glassTemperature = GetTemperatureSteinhartEquation(thermistorVoltage);
   
-delay(2000); 
+  // Define input of the PID as the glass temperature
+  Input = glassTemperature;
+
+  // Decide whether to use aggressive or conservative tuning constants based on the distance from the setpoint before computing PID
+  SetTuningFromGap();
+
+  // Compute PID loop (this is a function from the PID library)
+  myPID.Compute();
+
+  // Define output of PID as the heater output (will be at lower limit the first time around as the PID needs two data points for computation)
+  heaterOutput = Output;
+
+  // Adjust heater output if it is outside of the desired limits
+  SetHeaterOutputWhenOutsideLimits();
+
+  // Print buck converter voltage, glass temperature, and PID heater output to serial
+  PrintBuckConverterVoltageToSerial(buckConverterVoltage);
+  PrintGlassTemperatureToSerial();
+  PrintHeaterOutputToSerial();
+
+  // Delay determines how often loop repeats
+  delay(2000); 
+}
+
+// Get the average voltage from the tunable buck converter, return tunable buck converter voltage
+float GetBuckConverterVoltage()
+{
+  // Read voltage from voltmeter
+  float buckConverterVoltage = analogRead(VOLTMETERPIN);
+
+  // Take a predetermined number of voltage readings from the tunable buck converter in a row, with a slight delay
+  for (int i = 0; i < numberOfSamples; i++) 
+  {
+    loggedBuckConverterVoltages[i] = buckConverterVoltage;
+    delay(5);
+  }
+
+  float sumOfVoltageSamples = 0;
+
+  // Sum all the logged buck converter data
+  for (int i = 0; i < numberOfSamples; i++) 
+  {
+    sumOfVoltageSamples += loggedBuckConverterVoltages[i];
+  }
+
+  // Take the average of the buck converter voltages by dividing by the number of samples
+  float averageBuckConverterVoltage = 0;
+  averageBuckConverterVoltage = sumOfVoltageSamples / numberOfSamples;
+
+  // Do something?
+  float buckConverterTemporaryVariable = (averageBuckConverterVoltage * 5.0) / 1024.0;   
+  buckConverterVoltage = buckConverterTemporaryVariable / (r2 / (r1 + r2));
+
+  // If voltage is very small, consider it negligible and set it to 0        
+  if (buckConverterVoltage < 0.1)   
+  {     
+    buckConverterVoltage = 0.0;    
+  }
+
+  return buckConverterVoltage;
+}
+
+// Get the average voltage from the thermistor, return the average thermistor voltage
+float GetThermistorVoltage()
+{
+  // Take a predetermined number of thermistor voltage samples in a row, with a slight delay
+  for (int i = 0; i < numberOfSamples; i++) 
+  {
+    loggedThermistorVoltages[i] = analogRead(THERMISTORPIN);
+    delay(5);
+  }
+
+  float sumOfThermistorVoltageSamples = 0;
+
+  // Sum all the logged thermistor voltage data
+  for (int i = 0; i < numberOfSamples; i++) 
+  {
+    sumOfThermistorVoltageSamples += loggedThermistorVoltages[i];
+  }
+
+  // Take the average of the thermistor voltages by dividing by the number of samples
+  float averageThermistorVoltage = 0;
+  averageThermistorVoltage = sumOfThermistorVoltageSamples / numberOfSamples;
+
+  // Do something?
+  averageThermistorVoltage = 1023 / averageThermistorVoltage - 1;
+  
+  return averageThermistorVoltage;
+}
+
+// Calculate glass temperature using the Steinhart equation, pass in thermistor voltage, return glass temperature
+float GetTemperatureSteinhartEquation(float thermistorVoltage)
+{
+  // Convert the thermistor voltage to resistance
+  float resistance = SERIESRESISTOR / thermistorVoltage;
+  // R / Ro
+  float steinhartTemporaryVariable = resistance / THERMISTORNOMINAL;
+  // ln(R / Ro)
+  steinhartTemporaryVariable = log(steinhartTemporaryVariable);
+  // 1 / B * ln(R / Ro)
+  steinhartTemporaryVariable /= BCOEFFICIENT;
+  // + (1 / To), convert To to Celsius from Kelvin
+  steinhartTemporaryVariable += 1.0 / (TEMPERATURENOMINAL + 273.150);
+  // Invert
+  steinhartTemporaryVariable = 1.0 / steinhartTemporaryVariable;
+  // Convert from Kelvin to Celsius
+  steinhartTemporaryVariable -= 273.150;
+
+  return steinhartTemporaryVariable;
+}
+
+// Based on how far away we are from the setpoint, use different PID constants and different heater limits
+void SetTuningFromGap()
+{
+  // Distance away from setpoint
+  double setpointGap = abs(initialSetpoint-glassTemperature);
+
+  if (setpointGap < 5.0)
+  {
+    // Close to setpoint, use conservative tuning parameters
+    myPID.SetTunings(conservativeKp, conservativeKi, conservativeKd);
+    Serial.print("Conservative constants being used, upper heater limit: ");
+
+    // Use conservative upper heater limit
+    currentUpperHeaterOutputLimit = conservativeUpperHeaterOutputLimit;
+    Serial.print(currentUpperHeaterOutputLimit);
+    Serial.println(" C");
+  } 
+
+  else  
+  {
+    // Far from setpoint, use aggressive tuning parameters
+    myPID.SetTunings(aggressiveKp, aggressiveKi, aggressiveKd);
+    Serial.print("Aggressive constants being used, upper heater limit: ");
+
+    // Use aggressive upper heater limit
+    currentUpperHeaterOutputLimit = aggressiveUpperHeaterOutputLimit;
+    Serial.print(currentUpperHeaterOutputLimit);
+    Serial.println(" C");
+  }
+}
+
+// Ensure that heater temperature is within desired heater limits, change it if not
+void SetHeaterOutputWhenOutsideLimits()
+{
+  // Change heater temperature to current upper limit if the PID suggested heater temperature exceeds it
+  if (heaterOutput > currentUpperHeaterOutputLimit)
+  {
+    heaterOutput = currentUpperHeaterOutputLimit;
+  }
+}
+
+// Print the buck converter voltage to the serial, pass in the buck converter voltage
+void PrintBuckConverterVoltageToSerial(float buckConverterVoltage)
+{
+  Serial.print("Buck converter voltage: ");    
+  Serial.print(buckConverterVoltage);
+  Serial.println(" V");
+}
+
+// Print the glass temperature to the serial
+void PrintGlassTemperatureToSerial()
+{
+  Serial.print("Current glass temperature: ");
+  Serial.print(glassTemperature);
+  Serial.println(" C");
+}
+
+// Print the heater output to the serial
+void PrintHeaterOutputToSerial()
+{
+  Serial.print("Heater output: ");    
+  Serial.println(heaterOutput);    
 }
