@@ -33,6 +33,6 @@ This stage will need to rewuire that we assess:
 # Safety feautres and considerations
 1) Determine the applied voltage for the glass heater that at 100% current flow (e.g. MOSFET 100% duty cycle) at maxes out <= 60C to minimize chance of burn
 2) Incorporate thermal run away detection (i.e. where the heater is applying lots of power, but the temperature isn't increasing (e.g. ther thermistor fall off the glass)
-3) Monitor for a failure / disconnetion of the thermistor. This will be signalling by temperature jumping to a max value
+3) Monitor for a failure / disconnetion of the thermistor. This will be indicated by temperature jumping to -273 C.
  
   
