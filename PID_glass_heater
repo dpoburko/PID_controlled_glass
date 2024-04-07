@@ -12,7 +12,9 @@
 #define THERMISTORPIN A0
 // Voltmeter pin
 #define VOLTMETERPIN A2
-// Thermistor resistance at 25 C         
+// PWM PID output PIN to MOSFET
+#define pwmPinOut 9 //adjust as needed
+// Thermistor resistance at 25 C 
 #define THERMISTORNOMINAL 10000
 // Temperature for nominal resistance (almost always 25 C)
 #define TEMPERATURENOMINAL 25
@@ -55,6 +57,9 @@ uint16_t loggedBuckConverterVoltages[numberOfSamples];
 
 // Create PID object (start with conservative tuning constants to be safe)
 PID myPID(&Input, &Output, &Setpoint, conservativeKp, conservativeKi, conservativeKd, DIRECT);
+	
+	myPID.SetOutputLimits(0, 255); //set to limits of 
+
 
 void setup()
 {
@@ -74,7 +79,7 @@ void setup()
 
   // Turn the PID on
   myPID.SetMode(AUTOMATIC);
-
+    
   // Start at conservative upper heater limit to be safe
   currentUpperHeaterOutputLimit = conservativeUpperHeaterOutputLimit;
 }
@@ -102,6 +107,10 @@ void loop()
   // Define output of PID as the heater output (will be at lower limit the first time around as the PID needs two data points for computation)
   heaterOutput = Output;
 
+  // Adjust the duty cycle of the PWM pin connected to the MOSFET fron the PID output
+  analogWrite(pwmPinOut, Output);
+
+
   // Adjust heater output if it is outside of the desired limits
   SetHeaterOutputWhenOutsideLimits();
 
@@ -119,6 +128,8 @@ float GetBuckConverterVoltage()
 {
   // Read voltage from voltmeter
   float buckConverterVoltage = analogRead(VOLTMETERPIN);
+
+	//Damon's note - rather than storing measures in an array,then reading from that array, it would make for more compact code to simeple =+ the value
 
   // Take a predetermined number of voltage readings from the tunable buck converter in a row, with a slight delay
   for (int i = 0; i < numberOfSamples; i++) 
@@ -241,6 +252,10 @@ void SetHeaterOutputWhenOutsideLimits()
     heaterOutput = currentUpperHeaterOutputLimit;
   }
 }
+
+
+//Damon's note - Izzy, here you have the data printing to separate lines of the serial monitor. For easy of handling of graphing software, I present to 
+//print all values of interest to a single line with tabs beteen. 
 
 // Print the buck converter voltage to the serial, pass in the buck converter voltage
 void PrintBuckConverterVoltageToSerial(float buckConverterVoltage)
