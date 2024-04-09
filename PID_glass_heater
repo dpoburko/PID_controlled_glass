@@ -12,7 +12,9 @@
 #define THERMISTORPIN A0
 // Voltmeter pin
 #define VOLTMETERPIN A2
-// Thermistor resistance at 25 C         
+// PWM PID output PIN to MOSFET
+#define pwmPinOut 9 //adjust as needed
+// Thermistor resistance at 25 C 
 #define THERMISTORNOMINAL 10000
 // Temperature for nominal resistance (almost always 25 C)
 #define TEMPERATURENOMINAL 25
@@ -66,6 +68,8 @@ double glassTemperaturesArray[50];
 
 // Create PID object (start with conservative tuning constants to be safe)
 PID heaterPID(&PIDInput, &PIDOutput, &PIDSetpoint, conservativePIDKp, conservativePIDKi, conservativePIDKd, DIRECT);
+
+heaterPID.SetOutputLimits(0, 255); //set to limits of 
 
 void setup()
 {
@@ -145,6 +149,8 @@ void loop()
 
   // Adjust heater input if it is outside of the desired limits
   AdjustHeaterInputWhenOutsideLimits();
+  // Adjust the duty cycle of the PWM pin connected to the MOSFET fron the PID output
+  analogWrite(pwmPinOut, heaterInput);
 
   // Print buck converter voltage, glass temperature, and heater input to serial
   PrintBuckConverterVoltageToSerial(buckConverterVoltage);
@@ -160,6 +166,8 @@ float GetBuckConverterVoltage()
 {
   // Read voltage from voltmeter
   float buckConverterVoltage = analogRead(VOLTMETERPIN);
+
+	//Damon's note - rather than storing measures in an array,then reading from that array, it would make for more compact code to simeple =+ the value
 
   // Take a predetermined number of voltage readings from the tunable buck converter in a row, with a slight delay
   for (int i = 0; i < numberOfSampleReadings; i++) 
@@ -340,6 +348,10 @@ void AdjustHeaterInputWhenOutsideLimits()
     heaterInput = currentUpperHeaterLimit;
   }
 }
+
+
+//Damon's note - Izzy, here you have the data printing to separate lines of the serial monitor. For easy of handling of graphing software, I present to 
+//print all values of interest to a single line with tabs beteen. 
 
 // Print the buck converter voltage to the serial, pass in the buck converter voltage
 void PrintBuckConverterVoltageToSerial(float buckConverterVoltage)
