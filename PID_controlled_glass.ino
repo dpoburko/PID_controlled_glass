@@ -26,12 +26,13 @@
 
 // Set glass temperature goal (in degrees Celsius)
 const float glassSetpoint = 50.0;
+float PIDStartDelta = 5.0;
 
 // Set heater limits (bits), these are arbitrary values for now
 const float aggressiveUpperHeaterLimit = 255.0;
 const float conservativeUpperHeaterLimit = 155.0;
 
-// Variable to store current heater input limit
+// Variable to store current PWMoutput limit
 float currentUpperHeaterLimit = 0.0;
 
 // Variable to store maximum allowed glass temperature (in degrees Celsius)
@@ -49,9 +50,9 @@ const float r2Coefficient = 983.0;
 // is more smooth)
 const int numberOfSampleReadings = 10;
 
-// Initialize glass temperature (in degrees Celsius) and heater input value needed to change glass temperature
+// Initialize glass temperature (in degrees Celsius) and PWMoutput value needed to change glass temperature
 float glassTemperature = 0.0;
-float heaterInput = 0.0;
+float PWMoutput = 0.0;
 
 // Define PID variables (from PID library)
 double PIDSetpoint, PIDInput, PIDOutput;
@@ -69,8 +70,6 @@ double glassTemperaturesArray[50];
 // Create PID object (start with conservative tuning constants to be safe)
 PID heaterPID(&PIDInput, &PIDOutput, &PIDSetpoint, conservativePIDKp, conservativePIDKi, conservativePIDKd, DIRECT);
 
-heaterPID.SetOutputLimits(0, 255); //set to limits of 
-
 void setup()
 {
   // Open serial port, set data rate to 9600 bps
@@ -87,6 +86,7 @@ void setup()
 
   // Initialize PID
   heaterPID.SetMode(AUTOMATIC);
+  heaterPID.SetOutputLimits(0, 255); //set to limits of 
 
   // Start at conservative upper heater limit to be safe
   currentUpperHeaterLimit = conservativeUpperHeaterLimit;
@@ -103,10 +103,28 @@ void loop()
   // Calculate the glass temperature using the Steinhart equation
   glassTemperature = GetTemperatureSteinhartEquation(thermistorVoltage);
 
+  //When initially warming, if glass is too cold, go full throttle
+  if (0< glassTemperature < (glassSetpoint-PIDStartDelta)) {
+      heaterPID.SetMode(MANUAL);
+      PWMoutput = 0;
+
+  //Otherwise, check if it needs to be set to Auto and compute
+  } else {
+    // Compute PID loop (this is a function from the PID library)
+    if (heaterPID.GetMode()==0) {
+      heaterPID.SetMode(AUTOMATIC);      
+    } 
+    heaterPID.Compute();
+    // Define output of PID as the PWMoutput (will be at 0 the first time around as the PID needs two data points 
+    // for computation)
+    PWMoutput = PIDOutput;    
+  }
+ 
+
   // Log the temperature in an array and increase the read count
   glassTemperaturesArray[readCounter] = glassTemperature;
   readCounter ++;
-
+/*
   // Add glass temperature check for safety reasons
   if (!IsGlassTemperatureSafe())
   {
@@ -133,29 +151,25 @@ void loop()
       SafetyShutDown("Temp increase");
     }
   }
-
+*/
   // Define input of the PID as the glass temperature
   PIDInput = glassTemperature;
 
   // Decide whether to use aggressive or conservative tuning constants based on the distance from the setpoint before computing PID
   SetPIDTuningFromSetpointGap();
 
-  // Compute PID loop (this is a function from the PID library)
-  heaterPID.Compute();
 
-  // Define output of PID as the heater input (will be at 0 the first time around as the PID needs two data points 
-  // for computation)
-  heaterInput = PIDOutput;
+  // Adjust PWMoutput if it is outside of the desired limits
+  AdjustPWMoutputWhenOutsideLimits();
 
-  // Adjust heater input if it is outside of the desired limits
-  AdjustHeaterInputWhenOutsideLimits();
   // Adjust the duty cycle of the PWM pin connected to the MOSFET fron the PID output
-  analogWrite(pwmPinOut, heaterInput);
+  analogWrite(pwmPinOut, PWMoutput);
 
-  // Print buck converter voltage, glass temperature, and heater input to serial
+
+  // Print buck converter voltage, glass temperature, and PWMoutput to serial
   PrintBuckConverterVoltageToSerial(buckConverterVoltage);
   PrintGlassTemperatureToSerial();
-  PrintHeaterInputToSerial();
+  PrintPWMoutputToSerial();
 
   // Delay determines how often loop repeats
   delay(2000); 
@@ -267,7 +281,7 @@ bool IsGlassTemperatureSafe()
 void SafetyShutDown(String errorMessage)
 {
   // Turn off heater (stop any input) - need to actually communicate this to heater
-  heaterInput = 0;
+  PWMoutput = 0;
 
   // Print alert on serial
   Serial.println(errorMessage);
@@ -277,17 +291,18 @@ void SafetyShutDown(String errorMessage)
   delay(100);
 
   // Exit main program loop
-  exit(0);
+  //exit(0);
 }
 
 // Check for a significant glass temperature drop
+// We can expect temp changes on the glass to be slow. 
 bool HasGlassTemperatureDropped()
 {
   bool hasGlassTemperatureDropped = true;
 
-  float glassTemperatureGap = glassTemperaturesArray[readCounter] - glassTemperaturesArray[readCounter - 1];
+  //float glassTemperatureGap = glassTemperaturesArray[readCounter] - glassTemperaturesArray[readCounter - 1];
 
-  if (glassTemperatureGap > -5)
+  if (glassTemperaturesArray[readCounter - 1] < 0)
   {
     hasGlassTemperatureDropped = false;
   }
@@ -339,13 +354,13 @@ void SetPIDTuningFromSetpointGap()
   }
 }
 
-// Ensure that heater input is within desired heater limits, change it if not
-void AdjustHeaterInputWhenOutsideLimits()
+// Ensure that PWMoutput is within desired heater limits, change it if not
+void AdjustPWMoutputWhenOutsideLimits()
 {
-  // Change heater temperature to current upper limit if the PID suggested heater input exceeds it
-  if (heaterInput > currentUpperHeaterLimit)
+  // Change heater temperature to current upper limit if the PID suggested PWMoutput exceeds it
+  if (PWMoutput > currentUpperHeaterLimit)
   {
-    heaterInput = currentUpperHeaterLimit;
+    PWMoutput = currentUpperHeaterLimit;
   }
 }
 
@@ -369,9 +384,9 @@ void PrintGlassTemperatureToSerial()
   Serial.println(" C");
 }
 
-// Print the heater input to the serial
-void PrintHeaterInputToSerial()
+// Print the PWMoutput to the serial
+void PrintPWMoutputToSerial()
 {
-  Serial.print("Heater input: ");    
-  Serial.println(heaterInput);    
+  Serial.print("PWMoutput: ");    
+  Serial.println(PWMoutput);    
 }
