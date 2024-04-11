@@ -25,12 +25,12 @@
 #define SERIESRESISTOR 9985
 
 // Set glass temperature goal (in degrees Celsius)
-const float glassSetpoint = 50.0;
-float PIDStartDelta = 5.0;
+const float glassSetpoint = 35.0;
+float PIDStartDelta = 30.0;
 
 // Set heater limits (bits), these are arbitrary values for now
-const float aggressiveUpperHeaterLimit = 255.0;
-const float conservativeUpperHeaterLimit = 155.0;
+const float aggressiveUpperHeaterLimit = 205.0;
+const float conservativeUpperHeaterLimit = 205.0;
 
 // Variable to store current PWMoutput limit
 float currentUpperHeaterLimit = 0.0;
@@ -39,12 +39,19 @@ float currentUpperHeaterLimit = 0.0;
 float maxGlassTemperature = 60.0;
 
 // Set PID constants (aggressive and conservative), these are arbitrary values for now
-const float aggressivePIDKp = 4, aggressivePIDKi = 0.2, aggressivePIDKd = 1;
-const float conservativePIDKp = 1, conservativePIDKi = 0.05, conservativePIDKd = 0.25;
+const float aggressivePIDKp = 205, aggressivePIDKi = 5, aggressivePIDKd = 0;
+const float conservativePIDKp = 205, conservativePIDKi = 5, conservativePIDKd = 0;
+float currentPIDKp = conservativePIDKp;
+float currentPIDKi = conservativePIDKi;
+float currentPIDKd = conservativePIDKd;
+
+bool PIDmode = 0;
 
 // R coefficients
 const float r1Coefficient = 9810.0;
 const float r2Coefficient = 983.0;
+
+float buckConverterVoltage =0;
 
 // Set number of samples to take in order to get an average of the voltage and temperature data (more samples takes longer but 
 // is more smooth)
@@ -68,7 +75,9 @@ uint16_t buckConverterVoltagesArray[numberOfSampleReadings];
 double glassTemperaturesArray[50];
 
 // Create PID object (start with conservative tuning constants to be safe)
-PID heaterPID(&PIDInput, &PIDOutput, &PIDSetpoint, conservativePIDKp, conservativePIDKi, conservativePIDKd, DIRECT);
+
+
+PID heaterPID(&PIDInput, &PIDOutput, &PIDSetpoint, currentPIDKp, currentPIDKi, currentPIDKd, DIRECT);
 
 void setup()
 {
@@ -86,6 +95,7 @@ void setup()
 
   // Initialize PID
   heaterPID.SetMode(AUTOMATIC);
+  PIDmode =1;     
   heaterPID.SetOutputLimits(0, 255); //set to limits of 
 
   // Start at conservative upper heater limit to be safe
@@ -95,7 +105,7 @@ void setup()
 void loop() 
 {
   // Get the voltage from the tunable buck converter
-  float buckConverterVoltage = GetBuckConverterVoltage();
+  buckConverterVoltage = GetBuckConverterVoltage();
 
   // Get the voltage from the thermistor
   float thermistorVoltage = GetThermistorVoltage();
@@ -104,16 +114,19 @@ void loop()
   glassTemperature = GetTemperatureSteinhartEquation(thermistorVoltage);
 
   //When initially warming, if glass is too cold, go full throttle
-  if (0< glassTemperature < (glassSetpoint-PIDStartDelta)) {
+  if (0 > glassTemperature || glassTemperature < (glassSetpoint-PIDStartDelta)) {
       heaterPID.SetMode(MANUAL);
-      PWMoutput = 0;
-
+      PWMoutput = 255;
+      PIDmode =0;
   //Otherwise, check if it needs to be set to Auto and compute
   } else {
     // Compute PID loop (this is a function from the PID library)
     if (heaterPID.GetMode()==0) {
-      heaterPID.SetMode(AUTOMATIC);      
+      heaterPID.SetMode(AUTOMATIC); 
+      PIDmode =1;
+      PWMoutput = 0;     
     } 
+    
     heaterPID.Compute();
     // Define output of PID as the PWMoutput (will be at 0 the first time around as the PID needs two data points 
     // for computation)
@@ -167,9 +180,10 @@ void loop()
 
 
   // Print buck converter voltage, glass temperature, and PWMoutput to serial
-  PrintBuckConverterVoltageToSerial(buckConverterVoltage);
-  PrintGlassTemperatureToSerial();
-  PrintPWMoutputToSerial();
+  //PrintBuckConverterVoltageToSerial(buckConverterVoltage);
+  //PrintGlassTemperatureToSerial();
+  //PrintPWMoutputToSerial();
+  printParametersToSerial();
 
   // Delay determines how often loop repeats
   delay(2000); 
@@ -331,26 +345,34 @@ void SetPIDTuningFromSetpointGap()
   // Distance away from setpoint
   float setpointGap = abs(glassSetpoint-glassTemperature);
 
-  if (setpointGap < 5.0)
+  if (setpointGap < 2.0)
   {
     // Close to setpoint, use conservative tuning parameters
-    heaterPID.SetTunings(conservativePIDKp, conservativePIDKi, conservativePIDKd);
-    Serial.print("Conservative constants being used, upper heater limit: ");
+    currentPIDKp = conservativePIDKp;
+    currentPIDKi = conservativePIDKi;
+    currentPIDKd = conservativePIDKd;
+    heaterPID.SetTunings(currentPIDKp, currentPIDKi, currentPIDKd);
+    //Serial.print("Conservative constants being used, upper heater limit: ");
 
     // Use conservative upper heater limit
     currentUpperHeaterLimit = conservativeUpperHeaterLimit;
-    Serial.println(currentUpperHeaterLimit);
+    //Serial.println(currentUpperHeaterLimit);
   } 
 
   else  
   {
     // Far from setpoint, use aggressive tuning parameters
-    heaterPID.SetTunings(aggressivePIDKp, aggressivePIDKi, aggressivePIDKd);
-    Serial.print("Aggressive constants being used, upper heater limit: ");
+    currentPIDKp = aggressivePIDKp;
+    currentPIDKi = aggressivePIDKi;
+    currentPIDKd = aggressivePIDKd;
+    heaterPID.SetTunings(currentPIDKp, currentPIDKi, currentPIDKd);
+
+
+    //Serial.print("Aggressive constants being used, upper heater limit: ");
 
     // Use aggressive upper heater limit
     currentUpperHeaterLimit = aggressiveUpperHeaterLimit;
-    Serial.println(currentUpperHeaterLimit);
+    //Serial.println(currentUpperHeaterLimit);
   }
 }
 
@@ -369,6 +391,27 @@ void AdjustPWMoutputWhenOutsideLimits()
 //print all values of interest to a single line with tabs beteen. 
 
 // Print the buck converter voltage to the serial, pass in the buck converter voltage
+void printParametersToSerial()
+{
+  Serial.print("V(bc):");    
+  Serial.print(buckConverterVoltage,2);
+  Serial.print("\tT(glass):");
+  Serial.print(glassTemperature,2);
+  Serial.print("\tPWMOut:");
+  Serial.print(PWMoutput);
+  Serial.print("\tPIDKp:");
+  Serial.print(currentPIDKp);
+  Serial.print("\tPIDKi:");
+  Serial.print(currentPIDKi);
+  Serial.print("\tPIDKd:");
+  Serial.print(currentPIDKd);
+  Serial.print("\tPIDmode:");
+  Serial.print(PIDmode);
+  Serial.print("\tglassSetpoint:");
+  Serial.println(glassSetpoint);
+ 
+}
+/*
 void PrintBuckConverterVoltageToSerial(float buckConverterVoltage)
 {
   Serial.print("Buck converter voltage: ");    
@@ -390,3 +433,4 @@ void PrintPWMoutputToSerial()
   Serial.print("PWMoutput: ");    
   Serial.println(PWMoutput);    
 }
+*/
