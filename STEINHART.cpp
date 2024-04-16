@@ -1,5 +1,5 @@
-#include "Arduino.h"
-#include <STEINHART.h>
+#include <Arduino.h>
+#include "STEINHART.h"
 
 //where the calculation of analog input to temp is done.
 
@@ -28,7 +28,7 @@ bool STEINHART::Compute {
 
     if (delatTime>sampleTime) {
 
-        //measured voltage on analogIn pin
+        //measured voltage on analogIn pin several times to average noise
         for (int i = 0; i < nSamples; i++) {
           thermistorReading += analogRead(myAnalogPin);
           delay(5);
