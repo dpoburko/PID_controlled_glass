@@ -1,9 +1,9 @@
 
-#ifndef steinhard_v1.h
-#define steinhard_v1.h
+#ifndef STEINHART.h
+#define STEINHART.h
 #define LIBRARY_VERSION 1.0.0
 
-class steinhart {
+class STEINHART {
 
   public:
   //constants used in functions
@@ -12,7 +12,7 @@ class steinhart {
   
 
     //constructor, needs analog in PIN, temperature out, nomimal thermistor resistance, nominal temp (C), B coeeficient, series resistor 
-    steinhart(int, int, float, long, long, long,long);
+    STEINHART(int, int, float, long, long, long,long);
       
     bool Compute(); //performs calculation from current voltage input
 
