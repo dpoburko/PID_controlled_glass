@@ -29,18 +29,19 @@ const float glassSetpoint = 35.0;
 float PIDStartDelta = 30.0;
 
 // Set heater limits (bits), these are arbitrary values for now
-const float aggressiveUpperHeaterLimit = 205.0;
-const float conservativeUpperHeaterLimit = 205.0;
+const float outPutMax = 25.0; 
+const float aggressiveUpperHeaterLimit = outPutMax;
+const float conservativeUpperHeaterLimit = outPutMax;
 
 // Variable to store current PWMoutput limit
-float currentUpperHeaterLimit = 0.0;
+float currentUpperHeaterLimit = outPutMax;
 
 // Variable to store maximum allowed glass temperature (in degrees Celsius)
 float maxGlassTemperature = 60.0;
 
 // Set PID constants (aggressive and conservative), these are arbitrary values for now
-const float aggressivePIDKp = 205, aggressivePIDKi = 5, aggressivePIDKd = 0;
-const float conservativePIDKp = 205, conservativePIDKi = 5, conservativePIDKd = 0;
+const float aggressivePIDKp = 25, aggressivePIDKi = 10, aggressivePIDKd = 0;
+const float conservativePIDKp = 25, conservativePIDKi = 10, conservativePIDKd = 0;
 float currentPIDKp = conservativePIDKp;
 float currentPIDKi = conservativePIDKi;
 float currentPIDKd = conservativePIDKd;
@@ -55,7 +56,7 @@ float buckConverterVoltage =0;
 
 // Set number of samples to take in order to get an average of the voltage and temperature data (more samples takes longer but 
 // is more smooth)
-const int numberOfSampleReadings = 10;
+const int numberOfSampleReadings = 15;
 
 // Initialize glass temperature (in degrees Celsius) and PWMoutput value needed to change glass temperature
 float glassTemperature = 0.0;
@@ -76,7 +77,6 @@ double glassTemperaturesArray[50];
 
 // Create PID object (start with conservative tuning constants to be safe)
 
-
 PID heaterPID(&PIDInput, &PIDOutput, &PIDSetpoint, currentPIDKp, currentPIDKi, currentPIDKd, DIRECT);
 
 void setup()
@@ -96,7 +96,7 @@ void setup()
   // Initialize PID
   heaterPID.SetMode(AUTOMATIC);
   PIDmode =1;     
-  heaterPID.SetOutputLimits(0, 255); //set to limits of 
+  heaterPID.SetOutputLimits(0, outPutMax); //set to limits of 
 
   // Start at conservative upper heater limit to be safe
   currentUpperHeaterLimit = conservativeUpperHeaterLimit;
@@ -116,8 +116,8 @@ void loop()
   //When initially warming, if glass is too cold, go full throttle
   if (0 > glassTemperature || glassTemperature < (glassSetpoint-PIDStartDelta)) {
       heaterPID.SetMode(MANUAL);
-      PWMoutput = 255;
-      PIDmode =0;
+      PWMoutput = outPutMax;
+      PIDmode = 0;
   //Otherwise, check if it needs to be set to Auto and compute
   } else {
     // Compute PID loop (this is a function from the PID library)
@@ -342,6 +342,9 @@ bool HasGlassTemperatureIncreased()
 // Based on how far away we are from the setpoint, use different PID constants and different heater limits
 void SetPIDTuningFromSetpointGap()
 {
+
+  heaterPID.SetTunings(currentPIDKp, currentPIDKi, currentPIDKd);
+  /*
   // Distance away from setpoint
   float setpointGap = abs(glassSetpoint-glassTemperature);
 
@@ -374,6 +377,7 @@ void SetPIDTuningFromSetpointGap()
     currentUpperHeaterLimit = aggressiveUpperHeaterLimit;
     //Serial.println(currentUpperHeaterLimit);
   }
+  */
 }
 
 // Ensure that PWMoutput is within desired heater limits, change it if not
@@ -393,7 +397,7 @@ void AdjustPWMoutputWhenOutsideLimits()
 // Print the buck converter voltage to the serial, pass in the buck converter voltage
 void printParametersToSerial()
 {
-  Serial.print("V(bc):");    
+  Serial.print("V(in):");    
   Serial.print(buckConverterVoltage,2);
   Serial.print("\tT(glass):");
   Serial.print(glassTemperature,2);
@@ -407,7 +411,7 @@ void printParametersToSerial()
   Serial.print(currentPIDKd);
   Serial.print("\tPIDmode:");
   Serial.print(PIDmode);
-  Serial.print("\tglassSetpoint:");
+  Serial.print("\tsetPt(glass):");
   Serial.println(glassSetpoint);
  
 }
