@@ -7,13 +7,11 @@
 #include <PID_v1.h>
 // Wire library for I2C communication (must be downloaded)
 #include <Wire.h>
+#include "STEINHART.h"
 
+/*
 // Thermistor pin
 #define THERMISTORPIN A0
-// Voltmeter pin
-#define VOLTMETERPIN A2
-// PWM PID output PIN to MOSFET
-#define pwmPinOut 9 //adjust as needed
 // Thermistor resistance at 25 C 
 #define THERMISTORNOMINAL 10000
 // Temperature for nominal resistance (almost always 25 C)
@@ -23,13 +21,19 @@
 // Value of the other resistor (230501 - measured with AstroAI DM6000AR multimeter - difference between 5 C (with series resistor) 
 //and A0 line at 21 C and 0 C - same value)
 #define SERIESRESISTOR 9985
+*/
+
+// Analog input for measuring the voltage delivered to the glass heater via a 1/10 voltage divider
+#define VOLTMETERPIN A2
+// PWM PID output PIN to MOSFET
+#define pwmPinOut 9 //adjust as needed
 
 // Set glass temperature goal (in degrees Celsius)
 const float glassSetpoint = 35.0;
 float PIDStartDelta = 30.0;
 
 // Set heater limits (bits), these are arbitrary values for now
-const float outPutMax = 25.0; 
+const float outPutMax = 25.0; // Currently set to limit total current to the limits of the PSU or Buck converter. 
 const float aggressiveUpperHeaterLimit = outPutMax;
 const float conservativeUpperHeaterLimit = outPutMax;
 
@@ -37,6 +41,7 @@ const float conservativeUpperHeaterLimit = outPutMax;
 float currentUpperHeaterLimit = outPutMax;
 
 // Variable to store maximum allowed glass temperature (in degrees Celsius)
+// This will be more relevant when trying to control the internal temperature.
 float maxGlassTemperature = 60.0;
 
 // Set PID constants (aggressive and conservative), these are arbitrary values for now
@@ -48,15 +53,14 @@ float currentPIDKd = conservativePIDKd;
 
 bool PIDmode = 0;
 
-// R coefficients
+// Resistors r1 and r2 used for ~1:10 voltage divider to detection input voltage
 const float r1Coefficient = 9810.0;
 const float r2Coefficient = 983.0;
-
-float buckConverterVoltage =0;
+float buckConverterVoltage = 0;
 
 // Set number of samples to take in order to get an average of the voltage and temperature data (more samples takes longer but 
 // is more smooth)
-const int numberOfSampleReadings = 15;
+const int numberOfSampleReadings = 10;
 
 // Initialize glass temperature (in degrees Celsius) and PWMoutput value needed to change glass temperature
 float glassTemperature = 0.0;
@@ -108,7 +112,7 @@ void loop()
   buckConverterVoltage = GetBuckConverterVoltage();
 
   // Get the voltage from the thermistor
-  float thermistorVoltage = GetThermistorVoltage();
+  //float thermistorVoltage = GetThermistorVoltage(); //moved to library
 
   // Calculate the glass temperature using the Steinhart equation
   glassTemperature = GetTemperatureSteinhartEquation(thermistorVoltage);
