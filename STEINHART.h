@@ -1,6 +1,9 @@
 
-#ifndef STEINHART.h
-#define STEINHART.h
+#ifndef STEINHART_H
+#define STEINHART_H
+
+#include "Arduino.h"
+
 #define LIBRARY_VERSION 1.0.0
 
 class STEINHART {
@@ -12,11 +15,11 @@ class STEINHART {
   
 
     //constructor, needs analog in PIN, temperature out, nomimal thermistor resistance, nominal temp (C), B coeeficient, series resistor 
-    STEINHART(int*, int*, float*, long*, long*, long*,long*);
+    STEINHART(int, float*, long, long, long,float);
       
-    bool Compute(); //performs calculation from current voltage input
+    bool read(); //performs calculation from current voltage input
 
-    int celciusOut(); //  report temperature in celcius or farenheit, 
+    void celciusOut(int); //  report temperature in celcius or farenheit, 
     
     void setSampleTime(int); //define time in milliseconds between measurements
 
@@ -31,16 +34,15 @@ class STEINHART {
   private:
     void Initialize();
     //pointers to the Steinhart parameters
-    int *myAnalogPin;
-    int *myAnalogIn;
+    int analogPin;
     float *mySteinhartOut;
-    long *myThermistorResistance; 
-    long *myThermistorNominalTemp;
-    long *myBCoefficient;
-    long *mySeriesResistor;
+    long thermistorResistance; 
+    long thermistorNominalTemp;
+    long bCoefficient;
+    float seriesResistor;
 
     unsigned long prevTime;
-    unsgined long sampelTime;
+    unsigned long sampleTime;
     bool inCelcius;
     int nSamples;
     float thermistorReading;
