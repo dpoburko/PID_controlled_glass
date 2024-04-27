@@ -5,16 +5,16 @@
 
 //need to think through what needs to use pointers etc
 //Constructor
-STEINHART::STEINHART(int analogPin, float* steinhartOut, long thermistoResistance, long thermistorNominalTemp, long bCoefficient, float seriesResistor) {
+STEINHART::STEINHART(int analogPin, double* steinhartOut, long thermistoResistance, long thermistorNominalTemp, long bCoefficient, long seriesResistor) {
     
-    //myAnalogPin = analogPin;
+    myAnalogPin = analogPin;
     mySteinhartOut = steinhartOut;
-    //myThermistorResistance = thermistoResistance;
-    //myThermistorNominalTemp = thermistorNominalTemp;
-    //myBCoefficient = bCoefficient ;
-    //mySeriesResistor = seriesResistor;
+    myThermistorResistance = thermistoResistance;
+    myThermistorNominalTemp = thermistorNominalTemp;
+    myBCoefficient = bCoefficient ;
+    mySeriesResistor = seriesResistor;
     inCelcius = true;
-
+    nSamples = 5;
     sampleTime = 500;  
     //set 
 }
@@ -24,36 +24,44 @@ bool STEINHART::read() {
     //check if sufficient time has elapsed to calculate temp
     unsigned long now = millis();
     unsigned long deltaTime = (now - prevTime);
-    thermistorReading =0;
-    int tempReading = 0;
+    thermistorReading = 0;
+    double output;  
+    thermistorVoltage = 0;       
+    
     if (deltaTime>sampleTime) {
-
+        
         //measured voltage on analogIn pin several times to average noise
         for (int i = 0; i < nSamples; i++) {
-          tempReading += analogRead(analogPin);
-          //tempReading += analogRead(A0);
+          //thermistorReading += analogRead(myAnalogPin)/ nSamples;
+          thermistorVoltage += analogRead(myAnalogPin);
           delay(5);
         }
-        
-        thermistorReading = tempReading / nSamples;
-        thermistorVoltage = 1023 / thermistorReading - 1;      
-
+        thermistorVoltage /= nSamples;
       // Convert the thermistor voltage to resistance
-        float resistance = seriesResistor / thermistorVoltage; // R / Ro
-        float output;         
-        output = resistance / thermistorNominalTemp;         // ln(R / Ro)
+        thermistorVoltage = 1023 / thermistorVoltage - 1;      
+        thermistorVoltage = mySeriesResistor / thermistorVoltage; // R / Ro
+        output = thermistorVoltage / myThermistorResistance;         // ln(R / Ro)
         output = log(output);          // 1 / B * ln(R / Ro)
-        output /= bCoefficient;         // + (1 / To), convert To to Celsius from Kelvin
-        output += 1.0 / (thermistorNominalTemp + 273.150);
-        // Invert
+        output /= myBCoefficient;         // + (1 / To), convert To to Celsius from Kelvin
+        output += 1.0 / (myThermistorNominalTemp + 273.150);
         output = 1.0 / output;
-        // Convert from Kelvin to Celsius
-        output -= 273.150;
+        output -= 273.150;         // Convert from Kelvin to Celsius
        
         if (!inCelcius) {
             output = (9/5)*output + 32; //calculate output in celcius
         }
         *mySteinhartOut = output; 
+        Serial.print("final(outPut) ");
+        Serial.println(output,3);
+        Serial.println(" ");
+        
+/*
+       *mySteinhartOut = output; 
+        Serial.print("calculated Temp as ");
+        Serial.print(output,2);
+        Serial.print(" with *mySteinhartOut ");
+        Serial.println(*mySteinhartOut);
+  */     
         prevTime = now;  
         return true;
     }  else {
@@ -70,7 +78,7 @@ void STEINHART::setSampleTime(int newSampleTime) {
     
 }
 
-void STEINHART::setAnalogSamples(int newNumSamples) {
+void STEINHART::setNumSamples(int newNumSamples) {
   if (newNumSamples > 0 ){
     nSamples = newNumSamples;
   }
@@ -87,8 +95,8 @@ void STEINHART::celciusOut(int Scale) {
     }
 }
 
-long STEINHART::getNominalResistance() {return thermistorResistance; }
-long STEINHART::getCoefficient() { return bCoefficient; }
-long STEINHART::getNominalTemp(){ return  thermistorNominalTemp;}
-long STEINHART::getSeriesResistance(){ return seriesResistor;}
+long STEINHART::getNominalResistance() {return myThermistorResistance; }
+long STEINHART::getCoefficient() { return myBCoefficient; }
+long STEINHART::getNominalTemp(){ return  myThermistorNominalTemp;}
+long STEINHART::getSeriesResistance(){ return mySeriesResistor;}
                            

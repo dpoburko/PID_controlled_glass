@@ -10,7 +10,7 @@
 #include "STEINHART.h"
 
 //indicate the voltage of the dev board digital outputs.
-const float boardVout = 5.0;
+const double boardVout = 5.0;
 
 // Analog input for measuring the voltage delivered to the glass heater via a 1/10 voltage divider
 #define VOLTMETERPIN A2
@@ -18,31 +18,30 @@ const float boardVout = 5.0;
 #define pwmPinOut 9 //adjust as needed
 
 // Set glass temperature goal (in degrees Celsius) and max temp allowed
-const float glassSetpoint = 35.0;
-const float maxGlassTemperature = 60.0;
-float PIDStartDelta = 6.0;
+const double glassSetpoint = 35.0;
+const double maxGlassTemperature = 60.0;
+double PIDStartDelta = 6.0;
 
 // Set heater limits (bits), these are arbitrary values for now
-const float outPutMax = 25.0; // Currently set to limit total current to the limits of the PSU or Buck converter. 
-//const float aggressiveUpperHeaterLimit = outPutMax;
-//const float conservativeUpperHeaterLimit = outPutMax;
+const double outPutMax = 25.0; // Currently set to limit total current to the limits of the PSU or Buck converter. 
+//const double aggressiveUpperHeaterLimit = outPutMax;
+//const double conservativeUpperHeaterLimit = outPutMax;
 
 // Variable to store current PWMoutput limit
-float currentUpperHeaterLimit = outPutMax;
+double currentUpperHeaterLimit = outPutMax;
 
 // Set PID constants (aggressive and conservative), these are arbitrary values for now
-//const float aggressivePIDKp = 25, aggressivePIDKi = 10, aggressivePIDKd = 0;
-//const float conservativePIDKp = 25, conservativePIDKi = 10, conservativePIDKd = 0;
-const float PIDKp = 25, PIDKi = 10, PIDKd = 0;
-//float currentPIDKp = conservativePIDKp;
-//float currentPIDKi = conservativePIDKi;
-//float currentPIDKd = conservativePIDKd;
+//const double aggressivePIDKp = 25, aggressivePIDKi = 10, aggressivePIDKd = 0;
+//const double conservativePIDKp = 25, conservativePIDKi = 10, conservativePIDKd = 0;
+const double PIDKp = 25, PIDKi = 10, PIDKd = 0;
+//double currentPIDKp = conservativePIDKp;
+//double currentPIDKi = conservativePIDKi;
+//double currentPIDKd = conservativePIDKd;
 
 // Define PID variables (from PID library)
 double PIDSetpoint, PIDInput, PIDOutput;
-float PWMoutput = 0.0;
-float PWMoutputLast = 0.0;
-
+double PWMoutput = 0.0;
+double PWMoutputLast = 0.0;
 
 bool PIDmode = 0;
 bool safeMode = false;
@@ -52,9 +51,9 @@ bool newPID = false;
 PID heaterPID(&PIDInput, &PIDOutput, &PIDSetpoint, PIDKp, PIDKi, PIDKd, DIRECT);
 
 // Resistors r1 and r2 used for ~1:10 voltage divider to detection input voltage
-const float r1Coefficient = 9810.0;
-const float r2Coefficient = 983.0;
-float buckConverterVoltage = 0;
+const double r1Coefficient = 9810.0;
+const double r2Coefficient = 983.0;
+double buckConverterVoltage = 0;
 
 // Set number of samples to take in order to get an average of the voltage and temperature data (more samples takes longer but 
 // is more smooth)
@@ -70,19 +69,18 @@ int readCounter = 0;
 //Variables for the thermistor attached to the glass lid
 
 int thermistorPin = A0; // // Thermistor pin
-
-float glassTemperature = 0.0; // Initialize glass temperature (in degrees Celsius) and PWMoutput value needed to change glass temperature
+double glassTemperature = 0.0; // Initialize glass temperature (in degrees Celsius) and PWMoutput value needed to change glass temperature
 int glassInterval = 2000;
 const int historySize = 50;
 int historyIndex =0;
 bool historyFilled = false;
 double glassTempHistory[historySize];// Create glass temperature array (of size 50 for now)
 
-float thermistorVoltage = 0.0;
+double thermistorVoltage = 0.0;
 long Rnominal = 10000;  // Thermistor resistance at 25 C 
 long Tnominal = 25; // Temperature for nominal resistance (almost always 25 C)
 long bCoeff = 3435; // B coefficient for Steinhart equation 
-float Rseries = 9985.0; // measured R for whatever seriers resistor (~10 kOhms) is used
+long Rseries = 9985; // measured R for whatever seriers resistor (~10 kOhms) is used
 
 //Only the glass temp will change and is usefull to have a pointer
 STEINHART thermistor1(thermistorPin, &glassTemperature, Rnominal, Tnominal, bCoeff, Rseries);
@@ -120,7 +118,7 @@ void loop()
 {
 
   // Get the voltage from the thermistor
-  //float thermistorVoltage = GetThermistorVoltage(); //moved to library
+  //double thermistorVoltage = GetThermistorVoltage(); //moved to library
 
   // Calculate the glass temperature using the Steinhart equation
   //glassTemperature = GetTemperatureSteinhartEquation(thermistorVoltage);
@@ -218,9 +216,11 @@ void loop()
   //AdjustPWMoutputWhenOutsideLimits();
 
   // Print buck converter voltage, glass temperature, and PWMoutput to serial
-  if ( (millis() - displayLast) >= displayInterval) {
+  int tNow = millis();
+  if ( (tNow - displayLast) >= displayInterval) {
+    displayLast = tNow;
     printParametersToSerial();
-    displayLast = millis();
+    
   }
   
 
@@ -229,10 +229,10 @@ void loop()
 }
 
 // Get the average voltage from the tunable buck converter, return tunable buck converter voltage
-float GetBuckConverterVoltage()
+double GetBuckConverterVoltage()
 {
   // Read voltage from voltmeter 
-  float buckConverterVoltage;
+  double buckConverterVoltage;
 	
   // Average nSampleReadings from heater voltage source with a slight delay
   for (int i = 0; i < nSampleReadings; i++) 
@@ -256,7 +256,7 @@ float GetBuckConverterVoltage()
 }
 
 // Get the average voltage from the thermistor, return the average thermistor voltage
-/*float GetThermistorVoltage()
+/*double GetThermistorVoltage()
 {
   // Take a predetermined number of thermistor voltage samples in a row, with a slight delay
   for (int i = 0; i < nSampleReadings; i++) 
@@ -265,7 +265,7 @@ float GetBuckConverterVoltage()
     delay(5);
   }
 
-  float sumOfThermistorVoltageSamples = 0;
+  double sumOfThermistorVoltageSamples = 0;
 
   // Sum all the logged thermistor voltage data
   for (int i = 0; i < nSampleReadings; i++) 
@@ -274,7 +274,7 @@ float GetBuckConverterVoltage()
   }
 
   // Take the average of the thermistor voltages by dividing by the number of samples
-  float averageThermistorVoltage = 0;
+  double averageThermistorVoltage = 0;
   averageThermistorVoltage = sumOfThermistorVoltageSamples / nSampleReadings;
 
   // Do something?
@@ -285,12 +285,12 @@ float GetBuckConverterVoltage()
 
 
 // Calculate glass temperature using the Steinhart equation, pass in thermistor voltage, return glass temperature
-float GetTemperatureSteinhartEquation(float thermistorVoltage)
+double GetTemperatureSteinhartEquation(double thermistorVoltage)
 {
   // Convert the thermistor voltage to resistance
-  float resistance = SERIESRESISTOR / thermistorVoltage;
+  double resistance = SERIESRESISTOR / thermistorVoltage;
   // R / Ro
-  float steinhartTemporaryVariable = resistance / THERMISTORNOMINAL;
+  double steinhartTemporaryVariable = resistance / THERMISTORNOMINAL;
   // ln(R / Ro)
   steinhartTemporaryVariable = log(steinhartTemporaryVariable);
   // 1 / B * ln(R / Ro)
@@ -330,13 +330,13 @@ bool checkGlassTemp()
   bool isGlassTemperatureSafe = false;
   bool hasGlassTemperatureDropped = true;
   bool hasGlassTemperatureIncreased = true;
-  //float glassTemperatureGap = glassTemperaturesArray[readCounter] - glassTemperaturesArray[readCounter - 1];
+  //double glassTemperatureGap = glassTemperaturesArray[readCounter] - glassTemperaturesArray[readCounter - 1];
 
   //check if temp falling, suggesting a heater failure/short 
   if (historyFilled) {
     //check if temp falling despite heat being applied
       
-      float deltaT = glassTemperature - getGlassHistory( (historyIndex - historySize)%historySize);
+      double deltaT = glassTemperature - getGlassHistory( (historyIndex - historySize)%historySize);
       if (deltaT>1.5) {
         Serial.print("Potential Thermal Run away"); 
         safeMode = true;
@@ -375,7 +375,7 @@ void SetPIDTuningFromSetpointGap()
   heaterPID.SetTunings(currentPIDKp, currentPIDKi, currentPIDKd);
 
   // Distance away from setpoint
-  float setpointGap = abs(glassSetpoint-glassTemperature);
+  double setpointGap = abs(glassSetpoint-glassTemperature);
 
   if (setpointGap < 2.0)
   {
@@ -455,15 +455,15 @@ void appendToGlassHistory(int value)
   }
 }
 
-float getGlassHistory(int index)
+double getGlassHistory(int index)
 {
-  float out = glassTempHistory[index];
+  double out = glassTempHistory[index];
   return out;
 }
 
 
 /*
-void PrintBuckConverterVoltageToSerial(float buckConverterVoltage)
+void PrintBuckConverterVoltageToSerial(double buckConverterVoltage)
 {
   Serial.print("Buck converter voltage: ");    
   Serial.print(buckConverterVoltage);

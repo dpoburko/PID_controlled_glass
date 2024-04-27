@@ -15,7 +15,7 @@ class STEINHART {
   
 
     //constructor, needs analog in PIN, temperature out, nomimal thermistor resistance, nominal temp (C), B coeeficient, series resistor 
-    STEINHART(int, float*, long, long, long,float);
+    STEINHART(int, double*, long, long, long,long);
       
     bool read(); //performs calculation from current voltage input
 
@@ -23,7 +23,7 @@ class STEINHART {
     
     void setSampleTime(int); //define time in milliseconds between measurements
 
-    void setAnalogSamples(int); //number of times the analog in pin is averaged
+    void setNumSamples(int); //number of times the analog in pin is averaged
       
   //Display functions:
     long getNominalResistance();
@@ -34,19 +34,20 @@ class STEINHART {
   private:
     void Initialize();
     //pointers to the Steinhart parameters
-    int analogPin;
-    float *mySteinhartOut;
-    long thermistorResistance; 
-    long thermistorNominalTemp;
-    long bCoefficient;
-    float seriesResistor;
+    //int analogPin;
+    int myAnalogPin;
+    double *mySteinhartOut;
+    long myThermistorResistance; 
+    long myThermistorNominalTemp;
+    long myBCoefficient;
+    int  nSamples;
+    double mySeriesResistor;
 
     unsigned long prevTime;
     unsigned long sampleTime;
     bool inCelcius;
-    int nSamples;
-    float thermistorReading;
-    float thermistorVoltage;
+    double thermistorReading;
+    double thermistorVoltage;
     
 }; //close steinhart class
 #endif
