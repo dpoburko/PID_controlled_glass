@@ -57,7 +57,7 @@ double buckConverterVoltage = 0;
 
 // Set number of samples to take in order to get an average of the voltage and temperature data (more samples takes longer but 
 // is more smooth)
-const int nSampleReadings = 10;
+int nSampleReadings = 5;
 
 // Create a counter for the amount of reads taken
 int readCounter = 0;
@@ -116,17 +116,7 @@ void setup()
 
 void loop() 
 {
-
-  // Get the voltage from the thermistor
-  //double thermistorVoltage = GetThermistorVoltage(); //moved to library
-
-  // Calculate the glass temperature using the Steinhart equation
-  //glassTemperature = GetTemperatureSteinhartEquation(thermistorVoltage);
-
-  //this is incorrect. Need to shift toward end of array. Newest value should be 0th and have a max array length
-  //***** Consider using circular buffer library.
-  // **** to check if a value x observations earlier use index of i%buffer size. 
-  
+ 
   //call STEINHART library, check if value is updated  
   bool newTemp = thermistor1.read();
   
@@ -138,7 +128,7 @@ void loop()
 
      appendToGlassHistory(glassTemperature);
      // Define input of the PID as the glass temperature
-     PIDInput = glassTemperature;
+     PIDInput = glassTemperature; //no reason these can't be hard linked. 
   }
 
   //When initially warming, if glass is too cold, go full throttle
@@ -171,49 +161,15 @@ void loop()
     if (newPID ==true) PWMoutput = PIDOutput;    
   }
 
+ 
+  //check the glass temp to intervene with PID controller output if needed 
+  bool glassCheck = checkGlassTemp();
+	
   if (PWMoutput!= PWMoutputLast) {
     // Adjust the duty cycle of the PWM pin connected to the MOSFET fron the PID output if the value has changed
     analogWrite(pwmPinOut, PWMoutput);
     PWMoutputLast = PWMoutput;
   }
-
-  
-
-/*
-  // Add glass temperature check for safety reasons
-  if (!IsGlassTemperatureSafe())
-  {
-    // Glass temperature limit exceeded - shut down the program
-    SafetyShutDown("Glass too hot");
-  }
-
-  // Check for significant temperature drop (may indicate thermistor has detached), need at least two reads
-  if (readCounter > 0)
-  {
-    if (checkGlassTemp())
-    {
-      // Significant glass temperature drop - shut down the program
-      SafetyShutDown("Temp drop");
-    }
-  }
-
-  // Check for significant temperature increase (may indicate safety issue), need at least two reads
-  if (readCounter > 0)
-  {
-    if (HasGlassTemperatureIncreased())
-    {
-      // Significant glass temperature increase - shut down the program
-      SafetyShutDown("Temp increase");
-    }
-  }
-*/
-
-  // Decide whether to use aggressive or conservative tuning constants based on the distance from the setpoint before computing PID
-  // DP deprecated (scheduled for removal). Changing the tuning is probably not optimal. Better to consider changing max temp or max output
-  //SetPIDTuningFromSetpointGap();
-
-  // Adjust PWMoutput if it is outside of the desired limits
-  //AdjustPWMoutputWhenOutsideLimits();
 
   // Print buck converter voltage, glass temperature, and PWMoutput to serial
   int tNow = millis();
@@ -222,7 +178,6 @@ void loop()
     printParametersToSerial();
     
   }
-  
 
   // Delay determines how often loop repeats
   delay(20); 
@@ -232,13 +187,13 @@ void loop()
 double GetBuckConverterVoltage()
 {
   // Read voltage from voltmeter 
-  double buckConverterVoltage;
+  buckConverterVoltage = 0.0;
 	
   // Average nSampleReadings from heater voltage source with a slight delay
   for (int i = 0; i < nSampleReadings; i++) 
   {
     buckConverterVoltage += analogRead(VOLTMETERPIN)/ nSampleReadings;
-    delay(5);
+    delay(3);
   }
  
   // Convert the 0-1024 analog input to a voltage
@@ -247,180 +202,55 @@ double GetBuckConverterVoltage()
   buckConverterVoltage = buckConverterVoltage / (r2Coefficient / (r1Coefficient + r2Coefficient));
 
   // If voltage is very small, consider it negligible and set it to 0        
-  if (buckConverterVoltage < 0.1)
-  {     
-    buckConverterVoltage = 0.0;    
-  }
+  if (buckConverterVoltage < 0.1)  {  buckConverterVoltage = 0.0;   }
 
   return buckConverterVoltage;
 }
 
-// Get the average voltage from the thermistor, return the average thermistor voltage
-/*double GetThermistorVoltage()
-{
-  // Take a predetermined number of thermistor voltage samples in a row, with a slight delay
-  for (int i = 0; i < nSampleReadings; i++) 
-  {
-    thermistorVoltagesArray[i] = analogRead(THERMISTORPIN);
-    delay(5);
-  }
-
-  double sumOfThermistorVoltageSamples = 0;
-
-  // Sum all the logged thermistor voltage data
-  for (int i = 0; i < nSampleReadings; i++) 
-  {
-    sumOfThermistorVoltageSamples += thermistorVoltagesArray[i];
-  }
-
-  // Take the average of the thermistor voltages by dividing by the number of samples
-  double averageThermistorVoltage = 0;
-  averageThermistorVoltage = sumOfThermistorVoltageSamples / nSampleReadings;
-
-  // Do something?
-  averageThermistorVoltage = 1023 / averageThermistorVoltage - 1;
-  
-  return averageThermistorVoltage;
-}
-
-
-// Calculate glass temperature using the Steinhart equation, pass in thermistor voltage, return glass temperature
-double GetTemperatureSteinhartEquation(double thermistorVoltage)
-{
-  // Convert the thermistor voltage to resistance
-  double resistance = SERIESRESISTOR / thermistorVoltage;
-  // R / Ro
-  double steinhartTemporaryVariable = resistance / THERMISTORNOMINAL;
-  // ln(R / Ro)
-  steinhartTemporaryVariable = log(steinhartTemporaryVariable);
-  // 1 / B * ln(R / Ro)
-  steinhartTemporaryVariable /= BSTEINHARTCOEFFICIENT;
-  // + (1 / To), convert To to Celsius from Kelvin
-  steinhartTemporaryVariable += 1.0 / (TEMPERATURENOMINAL + 273.150);
-  // Invert
-  steinhartTemporaryVariable = 1.0 / steinhartTemporaryVariable;
-  // Convert from Kelvin to Celsius
-  steinhartTemporaryVariable -= 273.150;
-
-  return steinhartTemporaryVariable;
-}
-*/
-/*
-void SafetyShutDown(String errorMessage)
-{
-  // Turn off heater (stop any input) - need to actually communicate this to heater
-  PWMoutput = 0;
-
-  // Print alert on serial
-  Serial.println(errorMessage);
-  Serial.println("System shut down");
-
-  // Delay gives serial time to print the message before shutting down the system
-  delay(100);
-
-  // Exit main program loop
-  //exit(0);
-}
-
-// Check for a significant glass temperature drop
-// We can expect temp changes on the glass to be slow. 
-*/
 bool checkGlassTemp()
 {
-  bool isGlassTemperatureSafe = false;
-  bool hasGlassTemperatureDropped = true;
-  bool hasGlassTemperatureIncreased = true;
-  //double glassTemperatureGap = glassTemperaturesArray[readCounter] - glassTemperaturesArray[readCounter - 1];
-
   //check if temp falling, suggesting a heater failure/short 
   if (historyFilled) {
     //check if temp falling despite heat being applied
       
-      double deltaT = glassTemperature - getGlassHistory( (historyIndex - historySize)%historySize);
-      if (deltaT>1.5) {
-        Serial.print("Potential Thermal Run away"); 
-        safeMode = true;
-        //create a user input to continue and exit safet mode
-        hasGlassTemperatureDropped = true;
+      double deltaOverTime = glassTemperature - getGlassHistory( (historyIndex - historySize)%historySize);
+      double deltaFromSetPt = glassTemperature - glassSetPoint;
+      if (deltaOverTime>1.5) {
+        if (deltaFromSetPt>2.0) {
+	      	Serial.print("Thermal Run away detected. Switching to safemode"); 
+        	safeMode = true;
+		heaterPID.SetMode(MANUAL);
+      		PWMoutput = outPutMax;
+      		PIDmode = 0;
+        	//create a user input to continue and exit safet mode
+        	hasGlassTemperatureDropped = true;
+	}
       }
-      if (deltaT<1.5) {
-        Serial.print("Glass temp increasing"); 
-
-        //create a user input to continue and exit safet mode
-        hasGlassTemperatureIncreased = true;
+      if (deltaOverTime<1.5) {
+        Serial.print("Glass temp falling"); 
+      if (glassTemperature >= maxGlassTemperature) {
+	      Serial.print("GLASS AT SAFETY LIMIT!! Throlling back pwmout"); 
+	      //gently throttle back the power output
+	      PWMoutput /= 2;
       }
-
-  }
-  
-  // Make sure glass temperature is equal to or below the maximum allowed temperature
-  if (glassTemperature <= maxGlassTemperature)
-  {
-    isGlassTemperatureSafe = true;
-  }
-
-  // Return safety status
-  return isGlassTemperatureSafe;
-  return hasGlassTemperatureDropped;
-  return hasGlassTemperatureIncreased;
-  
+ 
 }
 
-
-
-// Based on how far away we are from the setpoint, use different PID constants and different heater limits
-/*
-void SetPIDTuningFromSetpointGap()
+void appendToGlassHistory(int value)
 {
-
-  heaterPID.SetTunings(currentPIDKp, currentPIDKi, currentPIDKd);
-
-  // Distance away from setpoint
-  double setpointGap = abs(glassSetpoint-glassTemperature);
-
-  if (setpointGap < 2.0)
-  {
-    // Close to setpoint, use conservative tuning parameters
-    currentPIDKp = conservativePIDKp;
-    currentPIDKi = conservativePIDKi;
-    currentPIDKd = conservativePIDKd;
-    heaterPID.SetTunings(currentPIDKp, currentPIDKi, currentPIDKd);
-    //Serial.print("Conservative constants being used, upper heater limit: ");
-
-    // Use conservative upper heater limit
-    currentUpperHeaterLimit = conservativeUpperHeaterLimit;
-    //Serial.println(currentUpperHeaterLimit);
-  } 
-
-  else  
-  {
-    // Far from setpoint, use aggressive tuning parameters
-    currentPIDKp = aggressivePIDKp;
-    currentPIDKi = aggressivePIDKi;
-    currentPIDKd = aggressivePIDKd;
-    heaterPID.SetTunings(currentPIDKp, currentPIDKi, currentPIDKd);
-
-
-    //Serial.print("Aggressive constants being used, upper heater limit: ");
-
-    // Use aggressive upper heater limit
-    currentUpperHeaterLimit = aggressiveUpperHeaterLimit;
-    //Serial.println(currentUpperHeaterLimit);
+  glassTempHistory[historyIndex] = value;
+  historyIndex++;
+  if (historyIndex >= historySize) {
+    historyIndex = 0;
+    historyFilled = true;
   }
-  
 }
-*/
-/*
-//DP I am not sure this is necessary. The PID library should take care of this when we set the max output
-// Ensure that PWMoutput is within desired heater limits, change it if not
-void AdjustPWMoutputWhenOutsideLimits()
+
+double getGlassHistory(int index)
 {
-  // Change heater temperature to current upper limit if the PID suggested PWMoutput exceeds it
-  if (PWMoutput > currentUpperHeaterLimit)
-  {
-    PWMoutput = currentUpperHeaterLimit;
-  }
+  double out = glassTempHistory[index];
+  return out;
 }
-*/
 
 // Print the buck converter voltage to the serial, pass in the buck converter voltage
 void printParametersToSerial()
@@ -444,44 +274,3 @@ void printParametersToSerial()
  
 }
 
-
-void appendToGlassHistory(int value)
-{
-  glassTempHistory[historyIndex] = value;
-  historyIndex++;
-  if (historyIndex >= historySize) {
-    historyIndex = 0;
-    historyFilled = true;
-  }
-}
-
-double getGlassHistory(int index)
-{
-  double out = glassTempHistory[index];
-  return out;
-}
-
-
-/*
-void PrintBuckConverterVoltageToSerial(double buckConverterVoltage)
-{
-  Serial.print("Buck converter voltage: ");    
-  Serial.print(buckConverterVoltage);
-  Serial.println(" V");
-}
-
-// Print the glass temperature to the serial
-void PrintGlassTemperatureToSerial()
-{
-  Serial.print("Current glass temperature: ");
-  Serial.print(glassTemperature);
-  Serial.println(" C");
-}
-
-// Print the PWMoutput to the serial
-void PrintPWMoutputToSerial()
-{
-  Serial.print("PWMoutput: ");    
-  Serial.println(PWMoutput);    
-}
-*/
