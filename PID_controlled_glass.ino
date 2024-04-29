@@ -9,65 +9,47 @@
 #include <Wire.h>
 #include "STEINHART.h"
 
-//indicate the voltage of the dev board digital outputs.
-const double boardVout = 5.0;
-
 // Analog input for measuring the voltage delivered to the glass heater via a 1/10 voltage divider
 #define VOLTMETERPIN A2
 // PWM PID output PIN to MOSFET
 #define pwmPinOut 9 //adjust as needed
+
+//indicate the voltage of the dev board digital outputs.
+const double boardVout = 5.0;
 
 // Set glass temperature goal (in degrees Celsius) and max temp allowed
 const double glassSetpoint = 35.0;
 const double maxGlassTemperature = 60.0;
 double PIDStartDelta = 6.0;
 
-// Set heater limits (bits), these are arbitrary values for now
+// ******* Set heater limits (bits), these are arbitrary values for now ***************************************
 const double outPutMax = 25.0; // Currently set to limit total current to the limits of the PSU or Buck converter. 
-//const double aggressiveUpperHeaterLimit = outPutMax;
-//const double conservativeUpperHeaterLimit = outPutMax;
 
-// Variable to store current PWMoutput limit
-double currentUpperHeaterLimit = outPutMax;
+// Set number of samples to take in order to get an average of the voltage and temperature data 
+int nSampleReadings = 5;
 
+
+//===== PID controller variables ===============================================================================
 // Set PID constants (aggressive and conservative), these are arbitrary values for now
-//const double aggressivePIDKp = 25, aggressivePIDKi = 10, aggressivePIDKd = 0;
-//const double conservativePIDKp = 25, conservativePIDKi = 10, conservativePIDKd = 0;
 const double PIDKp = 25, PIDKi = 10, PIDKd = 0;
-//double currentPIDKp = conservativePIDKp;
-//double currentPIDKi = conservativePIDKi;
-//double currentPIDKd = conservativePIDKd;
 
 // Define PID variables (from PID library)
 double PIDSetpoint, PIDInput, PIDOutput;
 double PWMoutput = 0.0;
 double PWMoutputLast = 0.0;
-
-bool PIDmode = 0;
-bool safeMode = false;
-bool newPID = false;
+bool PIDmode = 0; 
+bool safeMode = false; //catch all for errors
+bool newPID = false; //check if output has changed since last loop
 
 // Create PID object (start with conservative tuning constants to be safe)
 PID heaterPID(&PIDInput, &PIDOutput, &PIDSetpoint, PIDKp, PIDKi, PIDKd, DIRECT);
 
-// Resistors r1 and r2 used for ~1:10 voltage divider to detection input voltage
+//===== Resistors r1 and r2 used for ~1:10 voltage divider to detection input voltage ============================
 const double r1Coefficient = 9810.0;
 const double r2Coefficient = 983.0;
 double buckConverterVoltage = 0;
 
-// Set number of samples to take in order to get an average of the voltage and temperature data (more samples takes longer but 
-// is more smooth)
-int nSampleReadings = 5;
-
-// Create a counter for the amount of reads taken
-int readCounter = 0;
-
-// Arrays to log tunable buck converter voltage data and thermistor voltage data
-//uint16_t thermistorVoltagesArray[nSampleReadings];
-
-//=================================================================================
-//Variables for the thermistor attached to the glass lid
-
+//===== Variables for the thermistor attached to the glass lid ==================================================================
 int thermistorPin = A0; // // Thermistor pin
 double glassTemperature = 0.0; // Initialize glass temperature (in degrees Celsius) and PWMoutput value needed to change glass temperature
 int glassInterval = 2000;
@@ -82,12 +64,20 @@ long Tnominal = 25; // Temperature for nominal resistance (almost always 25 C)
 long bCoeff = 3435; // B coefficient for Steinhart equation 
 long Rseries = 9985; // measured R for whatever seriers resistor (~10 kOhms) is used
 
-//Only the glass temp will change and is usefull to have a pointer
+//===== Initialize the Steinhart temp calculation. Only glass temp needs to be a reference ===========================
 STEINHART thermistor1(thermistorPin, &glassTemperature, Rnominal, Tnominal, bCoeff, Rseries);
 //=================================================================================
 
+//====== Timing and communications ===============================================================================
 int displayInterval = 2000;
 int displayLast = 0;
+
+//Variables for serial message
+const int serialMML = 23; //max message length
+char endMessage = '.'; // Character which signals end of message from PC
+char incomingSerial[serialMML];
+int lengthOfMessage = 0;
+
 
 void setup()
 {
@@ -97,6 +87,9 @@ void setup()
   // Delay helps fix serial glitch
   delay(1000);
 
+  Serial.print("===== PID controlled glass heater =====================");
+  Serial.println("Stage-Top Incubator component"); 
+  
   // Initialize desired glass temperature
   PIDSetpoint = glassSetpoint;
 
@@ -110,8 +103,7 @@ void setup()
 
   thermistor1.setSampleTime(glassInterval);
   thermistor1.read();
-  // Start at conservative upper heater limit to be safe
-  //currentUpperHeaterLimit = conservativeUpperHeaterLimit;
+
 }
 
 void loop() 
@@ -179,6 +171,54 @@ void loop()
     
   }
 
+  if (Serial.available() > 0) {
+
+  /*
+   * What do we need to be able to change
+   * h - help. list options
+   * OK - acknowledge problem. Continue programs
+   * 
+   * P - PID
+   *  m = mode
+   *   1 = auto, 0 = manual, g = getMode
+   *  o - output 
+   *   8-bit value < maxoutput
+   *  t 
+   *   pppiiiddd - 9-digit value , 3 for each of p i and d
+   *  s - update setpoint 
+   *   nnn - 3-digit value representing tens, ones, decimal 00.0
+   *  D - update PID/STEINHART update delay
+   *   
+   */
+
+      // Read incomingMX300 until end character is reached or maxMessageLength characters are read.
+    lengthOfMessage = Serial.readBytesUntil(endMessage,incomingSerial,serialMML);
+    if (lengthOfMessage <= serialMML) {
+      if (incomingSerial[0] == 'P') {
+        //parsePIDCmd();  
+      }
+      if ((incomingSerial[0] == 'O') & (incomingSerial[0] == 'K')) {
+          Serial.println("OK. Error acknoledgement received");
+          safeMode = false;
+          
+      }
+      if ( incomingSerial[0] == 'h' || incomingSerial[0] == 'H' || incomingSerial[0] == '?') {
+        Serial.println("\n>>>> PID Serial Commands <<<<\n" );
+        Serial.println("End commands with '.' for faster responses" );
+        Serial.println("Interacting with the PID controller" );
+        Serial.println("   Pm1 - call  heaterPID.SetMode(AUTOMATIC)" );
+        Serial.println("   Pm0 - call  heaterPID.SetMode(Manual)" );
+        Serial.println("   Pmg - call  heaterPID.GetMode()" );
+        Serial.println("   Ponnn. - manually set PWMoutput (only usual in MANUAL mode" );
+        Serial.println("   Plnnn. - call heaterPID.SetOutputLimits(0, nnn)" );
+        Serial.println("   Ptpppiiiddd. - heaterPID.SetTunings(ppp,iii,ddd)" );
+        Serial.println("   Dnnnn. - call heaterPID.SetSampleTime(nnnn) & STEINHART::setSampleTime(nnnn)" );
+        
+      }
+    }
+
+   }// if (Serial.available() > 0)
+
   // Delay determines how often loop repeats
   delay(20); 
 }
@@ -213,27 +253,28 @@ bool checkGlassTemp()
   if (historyFilled) {
     //check if temp falling despite heat being applied
       
-      double deltaOverTime = glassTemperature - getGlassHistory( (historyIndex - historySize)%historySize);
-      double deltaFromSetPt = glassTemperature - glassSetPoint;
+      double deltaOverTime = glassTemperature - glassTempHistory[ (historyIndex - historySize)%historySize];
+      double deltaFromSetPt = glassTemperature - glassSetpoint;
       if (deltaOverTime>1.5) {
         if (deltaFromSetPt>2.0) {
-	      	Serial.print("Thermal Run away detected. Switching to safemode"); 
+	      	Serial.print("Error: Thermal Run away detected. Switching to safemode"); 
         	safeMode = true;
-		heaterPID.SetMode(MANUAL);
+		      heaterPID.SetMode(MANUAL);
       		PWMoutput = outPutMax;
       		PIDmode = 0;
         	//create a user input to continue and exit safet mode
-        	hasGlassTemperatureDropped = true;
-	}
+        	
+        }
       }
-      if (deltaOverTime<1.5) {
+      if (deltaOverTime<-1.5) {
         Serial.print("Glass temp falling"); 
-      if (glassTemperature >= maxGlassTemperature) {
-	      Serial.print("GLASS AT SAFETY LIMIT!! Throlling back pwmout"); 
-	      //gently throttle back the power output
-	      PWMoutput /= 2;
+        if (glassTemperature >= maxGlassTemperature) {
+  	      Serial.print("Error: GLASS AT SAFETY LIMIT!! Throlling back pwmout"); 
+  	      //gently throttle back the power output
+  	      PWMoutput /= 2;
+        }
       }
- 
+  }
 }
 
 void appendToGlassHistory(int value)
@@ -244,12 +285,6 @@ void appendToGlassHistory(int value)
     historyIndex = 0;
     historyFilled = true;
   }
-}
-
-double getGlassHistory(int index)
-{
-  double out = glassTempHistory[index];
-  return out;
 }
 
 // Print the buck converter voltage to the serial, pass in the buck converter voltage
@@ -273,4 +308,3 @@ void printParametersToSerial()
   Serial.println(glassSetpoint);
  
 }
-
