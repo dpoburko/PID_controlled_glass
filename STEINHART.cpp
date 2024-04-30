@@ -50,18 +50,7 @@ bool STEINHART::read() {
         if (!inCelcius) {
             output = (9/5)*output + 32; //calculate output in celcius
         }
-        *mySteinhartOut = output; 
-        Serial.print("final(outPut) ");
-        Serial.println(output,3);
-        Serial.println(" ");
-        
-/*
-       *mySteinhartOut = output; 
-        Serial.print("calculated Temp as ");
-        Serial.print(output,2);
-        Serial.print(" with *mySteinhartOut ");
-        Serial.println(*mySteinhartOut);
-  */     
+        *mySteinhartOut = output;
         prevTime = now;  
         return true;
     }  else {
