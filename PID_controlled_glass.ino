@@ -15,22 +15,22 @@
 #define pwmPinOut 9 //adjust as needed
 
 //indicate the voltage of the dev board digital outputs.
-const double boardVout = 5.0;
+const double boardVout = 3.3;
 
 // Set glass temperature goal (in degrees Celsius) and max temp allowed
 double glassSetpoint = 35.0;
-const double maxGlassTemperature = 60.0;
-double PIDStartDelta = 6.0;
+const int maxGlassTemperature = 60;
+int PIDStartDelta = 6;
 
 // ******* Set heater limits (bits), these are arbitrary values for now ***************************************
-double outPutMax = 25.0; // Currently set to limit total current to the limits of the PSU or Buck converter. 
+double outPutMax = 12.0; // Currently set to limit total current to the limits of the PSU or Buck converter. 
 
 // Set number of samples to take in order to get an average of the voltage and temperature data 
 int nSampleReadings = 5;
 
 //===== PID controller variables ===============================================================================
 // Set PID constants (aggressive and conservative), these are arbitrary values for now
-double PIDKp = 25, PIDKi = 10, PIDKd = 0;
+double PIDKp = 12, PIDKi = 48, PIDKd = 7;
 
 // Define PID variables (from PID library)
 double PIDSetpoint, PIDInput, PIDOutput;
@@ -45,18 +45,21 @@ bool newPID = false; //check if output has changed since last loop
 
 
 //===== Resistors r1 and r2 used for ~1:10 voltage divider to detection input voltage ============================
-const double r1Coefficient = 9810.0;
-const double r2Coefficient = 983.0;
+const int r1Coefficient = 9810;
+const int r2Coefficient = 983;
 double buckConverterVoltage = 0;
 
 //===== Variables for the thermistor attached to the glass lid ==================================================================
 int thermistorPin = A0; // // Thermistor pin
 double glassTemperature = 0.0; // Initialize glass temperature (in degrees Celsius) and PWMoutput value needed to change glass temperature
+double glassTempSlope = 0.0;
 int glassInterval = 2000;
 const int historySize = 60;
 int historyIndex =0;
 bool historyFilled = false;
 double glassTempHistory[historySize];// Create glass temperature array (of size 50 for now)
+double mseHistory[historySize];// Create glass temperature array (of size 50 for now)
+double mseTemp = 0.0;
 bool newTemp = false;
 
 double thermistorVoltage = 0.0;
@@ -84,7 +87,6 @@ char endMessage = '.'; // Character which signals end of message from PC
 char incomingSerial[serialMML];
 int lengthOfMessage = 0;
 
-
 void setup()
 {
   
@@ -99,14 +101,18 @@ void setup()
  
   // Initialize PID
   heaterPID.SetMode(AUTOMATIC);
-  PIDmode =1;     
+  PIDmode = heaterPID.GetMode();     
   heaterPID.SetOutputLimits(0, outPutMax); //set to limits of 
 
   thermistor1.setSampleTime(glassInterval);
   thermistor1.read();
+  delay(glassInterval);
+  thermistor1.read();
 
-  Serial.print("===== PID controlled glass heater =====================");
-  Serial.println("Stage-Top Incubator component"); 
+  Serial.print("   ===== PID controlled glass heater =====================");
+  Serial.println("   Stage-Top Incubator component"); 
+  Serial.print("   Initial Temperature:");
+  Serial.println(glassTemperature,2);
 
 }
 
@@ -123,6 +129,14 @@ void loop()
     getBuckConverterVoltage(buckConverterVoltage);
 
     appendToGlassHistory(glassTemperature);
+
+    glassTempSlope = (glassTemperature - glassTempHistory[ (historyIndex - historySize)%historySize]) / (glassInterval*60/60000);  //degrees/minute
+    
+    mseTemp += sq(glassTemperature-glassSetpoint)/historySize;
+    if (historyFilled) {
+      mseTemp -= mseHistory[ (historyIndex - historySize)%historySize];
+    }
+    
      // Define input of the PID as the glass temperature
      PIDInput = glassTemperature; //no reason these can't be hard linked. 
   }
@@ -227,7 +241,8 @@ void parsePIDCmd(){
          }
         else if (incomingSerial[1] == 'd') {
           char newDelay[4] = {incomingSerial[2],incomingSerial[3],incomingSerial[4],incomingSerial[5]};
-          heaterPID.SetSampleTime(newDelay);
+          int nd = atol(newDelay);
+          heaterPID.SetSampleTime(nd);
           Serial.print(" PID interval now ");
           Serial.println(newDelay);
          }
@@ -252,7 +267,7 @@ void parsePIDCmd(){
           heaterPID.SetTunings(PIDKp,PIDKi,PIDKd);
 
          }
-       } else if(incomingSerial[0] == "T" && incomingSerial[1] == "p" ){
+       } else if(incomingSerial[0] == 'T' && incomingSerial[1] == 'p' ){
           if (incomingSerial[2] == 'p') {
             for( int i =0; i< historySize; i++) {
               Serial.print(glassTempHistory[i]);
@@ -331,14 +346,14 @@ void errorCheck(int &thisError)
 
       //If temp not reaching desired setpoint and slope is relatively flat, 
       // assume power is insufficient to reach setpoint
-      if (deltaFromSetPt < -0.5 && slope < 0.5 && slope > -1  ) {
+      if (deltaFromSetPt < -0.5 && slope < 0.5 && glassTempSlope > -1  ) {
         newError = 3;
         Serial.println("Error Code: 3 - Under-powered. Consider increasing max output or optimizing P constant"); 
       }
 
       // Heater failure: temperature falling unexpectedly when in auto mode
       // assume power is insufficient to reach setpoint
-      if (deltaFromSetPt < -0.5 && slope <= -1  ) {
+      if (deltaFromSetPt < -0.5 && glassTempSlope <= -1  ) {
         newError = 4;
         Serial.println("Error Code: 4 - Heater appears to have failed. "); 
       }
@@ -352,12 +367,14 @@ void errorCheck(int &thisError)
 void appendToGlassHistory(double value)
 {
   glassTempHistory[historyIndex] = value;
+  mseHistory[historyIndex] = sq(value-glassSetpoint)/historySize;
   historyIndex++;
   if (historyIndex >= historySize) {
     historyIndex = 0;
     historyFilled = true;
   }
 }
+
 
 // Print the buck converter voltage to the serial, pass in the buck converter voltage
 void printParametersToSerial()
@@ -366,6 +383,11 @@ void printParametersToSerial()
   Serial.print(buckConverterVoltage,2);
   Serial.print("\tT(glass):");
   Serial.print(glassTemperature,2);
+  Serial.print("\tT(slope):");
+  Serial.print(glassTempSlope,2);
+  Serial.print("\tT(mse):");
+  Serial.print(mseTemp,2);
+  
   Serial.print("\tPWMOut:");
   Serial.print(PWMoutput);
   Serial.print("\tPIDKp:");
@@ -378,6 +400,8 @@ void printParametersToSerial()
   Serial.print(PIDmode);
   Serial.print("\tsetPt(glass):");
   Serial.print(glassSetpoint);
+  Serial.print("\tMSE(glass):");
+  Serial.print(mseTemp,2);
   Serial.print("\tError:");
   Serial.println(errorCode);
  

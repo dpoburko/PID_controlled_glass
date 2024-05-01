@@ -37,6 +37,7 @@ bool STEINHART::read() {
           delay(5);
         }
         thermistorVoltage /= nSamples;
+        
       // Convert the thermistor voltage to resistance
         thermistorVoltage = 1023 / thermistorVoltage - 1;      
         thermistorVoltage = mySeriesResistor / thermistorVoltage; // R / Ro
