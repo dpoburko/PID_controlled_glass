@@ -14,7 +14,7 @@ STEINHART::STEINHART(int analogPin, double* steinhartOut, long thermistoResistan
     myBCoefficient = bCoefficient ;
     mySeriesResistor = seriesResistor;
     inCelcius = true;
-    nSamples = 5;
+    nSamples = 11.0; //doule to allow decimal average
     sampleTime = 500;  
     //set 
 }
@@ -34,7 +34,7 @@ bool STEINHART::read() {
         for (int i = 0; i < nSamples; i++) {
           //thermistorReading += analogRead(myAnalogPin)/ nSamples;
           thermistorVoltage += analogRead(myAnalogPin);
-          delay(5);
+          delay(1);
         }
         thermistorVoltage /= nSamples;
         
