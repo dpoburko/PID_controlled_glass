@@ -18,28 +18,28 @@
 const double boardVout = 5.0;
 
 // Set glass temperature goal (in degrees Celsius) and max temp allowed
-double glassSetpoint = 35.0;
+double glassSetpoint = 45.0;
 const int maxGlassTemperature = 60;
 double PIDStartDelta = 1.5;
 
 // ******* Set heater limits (bits), these are arbitrary values for now ***************************************
 double outPutMax = 25.0; // Currently set to limit total current to the limits of the PSU or Buck converter. 
-double outPutHolding = 12.0; // Currently set to limit total current to the limits of the PSU or Buck converter. 
+double outPutHolding = 22.0; // Currently set to limit total current to the limits of the PSU or Buck converter. 
 double outPutUpperCurrent = outPutHolding;
 
 // Set number of samples to take in order to get an average of the voltage and temperature data 
 double nSampleReadings = 11.0; //needs to be double for average to have decimals
 
 //===== PID controller variables ===============================================================================
-// Set PID constants (aggressive and conservative), these are arbitrary values for now
-double PIDKp = 2, PIDKi = 48, PIDKd = 7;
+// These values (2/24/21) are working well for the 5 mm thick glass
+double PIDKp = 2, PIDKi = 24, PIDKd = 21;
 
 // Define PID variables (from PID library)
 double PIDSetpoint, PIDInput, PIDOutput;
 double PWMoutput = 0.0;
 double PWMoutputLast = 0.0;
 bool PIDmode = 0; 
-int errorCode = 0; //catch all for errors
+long errorCode = 0; //catch all for errors
 bool errorAcknowledged = false;
 bool userOverRide = false;
 bool newPID = false; //check if output has changed since last loop
