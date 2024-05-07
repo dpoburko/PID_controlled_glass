@@ -15,7 +15,7 @@
 #define pwmPinOut 9 //adjust as needed
 
 //indicate the voltage of the dev board digital outputs.
-const double boardVout = 5.0;
+const double boardVout = 3.3;
 
 // Set glass temperature goal (in degrees Celsius) and max temp allowed
 double glassSetpoint = 45.0;
@@ -134,9 +134,9 @@ void loop()
 
     if (historyFilled == false) {
       if (historyIndex == 0) {
-        glassTempSlope = 0 ;
+        glassTempSlope = 0.0 ;
       } else {
-        glassTempSlope = (glassTemperature - glassTempHistory[0]) / ( (historyIndex)*glassInterval/60000);  //degrees/minute
+        glassTempSlope = (glassTemperature - glassTempHistory[0]) / ( (long)(historyIndex+1)*(long)glassInterval/60000);  //degrees/minute
       }
     } else {
       glassTempSlope = (glassTemperature - glassTempHistory[endIndex]) / (historySize*glassInterval/60000);  //degrees/minute
@@ -217,6 +217,7 @@ void loop()
         
         Serial.println("   Ponnn. - manually set PWMoutput (only usual in MANUAL mode" );
         Serial.println("   Plnnn. - call heaterPID.SetOutputLimits(0, nnn)" );
+        Serial.println("   Phnnn. - updated holding PWM" );
         Serial.println("   Ptpppiiiddd. - heaterPID.SetTunings(ppp,iii,ddd)" );
         Serial.println("   Pdnnnn. - call heaterPID.SetSampleTime(nnnn) & STEINHART::setSampleTime(nnnn)" );
         Serial.println("   Tp - print temperature history" );
@@ -274,9 +275,16 @@ void parsePIDCmd(){
             char upper[3] = {incomingSerial[2],incomingSerial[3],incomingSerial[4]};
             outPutMax = atof(upper);
             heaterPID.SetOutputLimits(0,outPutMax);
-            Serial.print("heaterPID.SetOutputLimits(0,"); 
+            Serial.print("   heaterPID.SetOutputLimits(0,"); 
             Serial.print(outPutMax);  
             Serial.println(")");     
+           }
+          else if (incomingSerial[1] == 'h') {
+            char holding[3] = {incomingSerial[2],incomingSerial[3],incomingSerial[4]};
+            outPutHolding = atof(holding);
+            Serial.print("   outPutHolding now "); 
+            Serial.print(outPutHolding,2);  
+            Serial.println(" ");     
            }
           else if (incomingSerial[1] == 'd') {
             char newDelay[4] = {incomingSerial[2],incomingSerial[3],incomingSerial[4],incomingSerial[5]};
@@ -431,11 +439,14 @@ void appendToGlassHistory(double value)
 void arrayAverage(double thisArray[],double &average){
 
   double arrAvg =0.0;
-  int arrSize = sizeof(thisArray);
-  for (int i = 0;i<arrSize;i++) {
+  for (int i = 0;i<historySize;i++) {
     arrAvg += thisArray[i];
   }
-  arrAvg / (double)arrSize;
+  if (historyFilled) {
+    arrAvg /= historySize;   
+  } else {
+    arrAvg /= long(historyIndex+1);
+  }
   average = arrAvg;
 }
 
@@ -452,7 +463,6 @@ void printParametersToSerial()
   Serial.print(glassTempSlope,2);
   Serial.print("\tT(mse):");
   Serial.print(mseTemp,3);
-  
   Serial.print("\tPWMOut:");
   Serial.print(PWMoutput);
   Serial.print("\tPIDKp:");
