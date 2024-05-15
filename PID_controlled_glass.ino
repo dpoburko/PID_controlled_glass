@@ -218,7 +218,10 @@ void loop()
         Serial.println("   Ponnn. - manually set PWMoutput (only usual in MANUAL mode" );
         Serial.println("   Plnnn. - call heaterPID.SetOutputLimits(0, nnn)" );
         Serial.println("   Phnnn. - updated holding PWM" );
-        Serial.println("   Ptpppiiiddd. - heaterPID.SetTunings(ppp,iii,ddd)" );
+        Serial.println("   Ptpnnn. - heaterPID.SetTunings(nnn,iii,ddd)" );
+        Serial.println("   Ptinnn. - heaterPID.SetTunings(ppp,nnn,ddd)" );
+        Serial.println("   Ptdnnn. - heaterPID.SetTunings(ppp,iii,nnn)" );
+        
         Serial.println("   Pdnnnn. - call heaterPID.SetSampleTime(nnnn) & STEINHART::setSampleTime(nnnn)" );
         Serial.println("   Tp - print temperature history" );
         Serial.println("   Ep - print mse history" );
