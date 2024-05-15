@@ -40,7 +40,7 @@ class STEINHART {
     long myThermistorResistance; 
     long myThermistorNominalTemp;
     long myBCoefficient;
-    int  nSamples;
+    double  nSamples;
     double mySeriesResistor;
 
     unsigned long prevTime;

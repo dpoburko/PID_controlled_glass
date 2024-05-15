@@ -14,7 +14,7 @@ STEINHART::STEINHART(int analogPin, double* steinhartOut, long thermistoResistan
     myBCoefficient = bCoefficient ;
     mySeriesResistor = seriesResistor;
     inCelcius = true;
-    nSamples = 5;
+    nSamples = 11.0; //doule to allow decimal average
     sampleTime = 500;  
     //set 
 }
@@ -34,9 +34,10 @@ bool STEINHART::read() {
         for (int i = 0; i < nSamples; i++) {
           //thermistorReading += analogRead(myAnalogPin)/ nSamples;
           thermistorVoltage += analogRead(myAnalogPin);
-          delay(5);
+          delay(1);
         }
         thermistorVoltage /= nSamples;
+        
       // Convert the thermistor voltage to resistance
         thermistorVoltage = 1023 / thermistorVoltage - 1;      
         thermistorVoltage = mySeriesResistor / thermistorVoltage; // R / Ro
@@ -50,18 +51,7 @@ bool STEINHART::read() {
         if (!inCelcius) {
             output = (9/5)*output + 32; //calculate output in celcius
         }
-        *mySteinhartOut = output; 
-        Serial.print("final(outPut) ");
-        Serial.println(output,3);
-        Serial.println(" ");
-        
-/*
-       *mySteinhartOut = output; 
-        Serial.print("calculated Temp as ");
-        Serial.print(output,2);
-        Serial.print(" with *mySteinhartOut ");
-        Serial.println(*mySteinhartOut);
-  */     
+        *mySteinhartOut = output;
         prevTime = now;  
         return true;
     }  else {
