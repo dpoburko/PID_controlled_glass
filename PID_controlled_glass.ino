@@ -15,7 +15,7 @@
 #define pwmPinOut 9 //adjust as needed
 
 //indicate the voltage of the dev board digital outputs.
-const double boardVout = 3.3;
+const double boardVout = 5.0;
 
 // Set glass temperature goal (in degrees Celsius) and max temp allowed
 double glassSetpoint = 45.0;
@@ -51,9 +51,13 @@ const double r2Coefficient = 983;
 double buckConverterVoltage = 0;
 
 //===== Variables for the thermistor attached to the glass lid ==================================================================
-int thermistorPin = A0; // // Thermistor pin
+int thermistor1Pin = A0; // // Thermistor pin
+int thermistor2Pin = A4; // // Thermistor pin
+
 double glassTemperature = 0.0; // Initialize glass temperature (in degrees Celsius) and PWMoutput value needed to change glass temperature
 double glassTempSlope = 0.0;
+double airTemperature = 20.0;
+
 int glassInterval = 2000;
 const int historySize = 60;
 int historyIndex = 0;
@@ -70,8 +74,10 @@ long Tnominal = 25; // Temperature for nominal resistance (almost always 25 C)
 long bCoeff = 3435; // B coefficient for Steinhart equation 
 long Rseries = 9985; // measured R for whatever seriers resistor (~10 kOhms) is used
 
+
 //===== Initialize the Steinhart temp calculation. Only glass temp needs to be a reference ===========================
-STEINHART thermistor1(thermistorPin, &glassTemperature, Rnominal, Tnominal, bCoeff, Rseries);
+STEINHART thermistor1(thermistor1Pin, &glassTemperature, Rnominal, Tnominal, bCoeff, Rseries);
+STEINHART thermistor2(thermistor2Pin, &airTemperature, Rnominal, Tnominal, bCoeff, Rseries);
 //=================================================================================
 
 //===== Initialize the PID controller for the glass lid  ===========================
@@ -108,8 +114,8 @@ void setup()
 
   thermistor1.setSampleTime(glassInterval);
   thermistor1.read();
-  delay(glassInterval);
-  thermistor1.read();
+  thermistor2.setSampleTime(glassInterval);
+  thermistor2.read();
 
   Serial.print("   ===== PID controlled glass heater =====================");
   Serial.println("   Stage-Top Incubator component"); 
@@ -126,10 +132,10 @@ void loop()
   
   //add the new temp reading to the history array if new value available
   if (newTemp) {
-    
+    thermistor2.read();
+	  
     // Get the voltage from the tunable buck converter - burried here to match temp check interval
     getBuckConverterVoltage(buckConverterVoltage);
-
     appendToGlassHistory(glassTemperature);
 
     if (historyFilled == false) {
@@ -460,6 +466,8 @@ void printParametersToSerial()
 {
   Serial.print("V(in):");    
   Serial.print(buckConverterVoltage,2);
+  Serial.print("\tT(enclosure):");
+  Serial.print(airTemperature,2);
   Serial.print("\tT(glass):");
   Serial.print(glassTemperature,2);
   Serial.print("\tT(slope):");
