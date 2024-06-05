@@ -19,12 +19,12 @@ const double boardVout = 5.0;
 
 // Set glass temperature goal (in degrees Celsius) and max temp allowed
 double glassSetpoint = 45.0;
-const int maxGlassTemperature = 60;
+const int maxGlassTemperature = 65;
 double PIDStartDelta = 1.5;
 
 // ******* Set heater limits (bits), these are arbitrary values for now ***************************************
-double outPutMax = 25.0; // Currently set to limit total current to the limits of the PSU or Buck converter. 
-double outPutHolding = 22.0; // Currently set to limit total current to the limits of the PSU or Buck converter. 
+double outPutMax = 40.0; // Currently set to limit total current to the limits of the PSU or Buck converter. 
+double outPutHolding = 40.0; // Currently set to limit total current to the limits of the PSU or Buck converter. 
 double outPutUpperCurrent = outPutHolding;
 
 // Set number of samples to take in order to get an average of the voltage and temperature data 
