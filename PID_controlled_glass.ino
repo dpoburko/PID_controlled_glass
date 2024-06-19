@@ -23,7 +23,7 @@ const int maxGlassTemperature = 68;
 double PIDStartDelta = 1.5;
 
 // ******* Set heater limits (bits), these are arbitrary values for now ***************************************
-double outPutMax = 40.0; // Currently set to limit total current to the limits of the PSU or Buck converter. 
+double outPutMax = 45.0; // Currently set to limit total current to the limits of the PSU or Buck converter. 
 double outPutHolding = 40.0; // Currently set to limit total current to the limits of the PSU or Buck converter. 
 double outPutUpperCurrent = outPutHolding;
 
