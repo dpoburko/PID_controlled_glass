@@ -167,17 +167,22 @@ void loop()
       if (outPutUpperCurrent != outPutMax) {
         outPutUpperCurrent = outPutMax;
         heaterPID.SetOutputLimits(0,outPutUpperCurrent);
-        Serial.print(" setting outPutUpperCurrent to ");
-        Serial.print(outPutMax);
-        Serial.println(" (outputMax) for rapid heating");
+        //Serial.print(" setting outPutUpperCurrent to ");
+        //Serial.print(outPutMax);
+        //Serial.println(" (outputMax) for rapid heating");
+				msgBuffer += " For rapid heating setting outPutUpperCurrent to ");
+				msgBuffer += String(outPutMax);
       }
      } else {
       if (outPutUpperCurrent != outPutHolding) {
         outPutUpperCurrent = outPutHolding;
         heaterPID.SetOutputLimits(0,outPutUpperCurrent);
-        Serial.print(" setting outPutUpperCurrent to ");
-        Serial.print(outPutHolding);
-        Serial.println(" (outPutHolding) for setPoint maintenance");
+        //Serial.print(" setting outPutUpperCurrent to ");
+        //Serial.print(outPutHolding);
+        //Serial.println(" (outPutHolding) for setPoint maintenance");
+				msgBuffer += " For maintenance heating setting outPutUpperCurrent to ");
+				msgBuffer += String(outPutMax);
+
       }
      }
   }
@@ -191,7 +196,7 @@ void loop()
    
   //****** perform a series of tests on thermistor reading and temperature vs setpoint and over time
   //-- override PWMoutput if indicated
-  //errorCheck(errorCode);
+  errorCheck(errorCode);
   //need to concatenate a message to the serial output line
 	
   if (PWMoutput!= PWMoutputLast) {
@@ -200,7 +205,7 @@ void loop()
     PWMoutputLast = PWMoutput;
   }
 
-  // Print buck converter voltage, glass temperature, and PWMoutput to serial
+  // Update Serial output as per display interval
   int tNow = millis();
   if ( (tNow - displayLast) >= displayInterval) {
     printParametersToSerial();
@@ -233,6 +238,7 @@ void loop()
         Serial.println("   Ponnn. - manually set PWMoutput (only usual in MANUAL mode" );
         Serial.println("   Plnnn. - call heaterPID.SetOutputLimits(0, nnn)" );
         Serial.println("   Phnnn. - updated holding PWM" );
+				Serial.println("   Pennn. - update PWM output safety evel on error detection" );
         Serial.println("   Ptpnnn. - heaterPID.SetTunings(nn.n,iii,ddd)" );
         Serial.println("   Ptinnn. - heaterPID.SetTunings(ppp,nnn,ddd)" );
         Serial.println("   Ptdnnn. - heaterPID.SetTunings(ppp,iii,nnn)" );
@@ -259,51 +265,71 @@ void parsePIDCmd(){
           if (incomingSerial[1] == 'm') {
             if (incomingSerial[2] == 'a') {
               heaterPID.SetMode(AUTOMATIC); 
-              Serial.println(" PID set to ATUOMATIC"); 
-              //PIDmode = 1;
-               PIDmode = heaterPID.GetMode();
+							PIDmode = heaterPID.GetMode(); //should be 1
+							//Serial.println(" PID set to ATUOMATIC"); 
+							msgBuffer +=" PID set to Automatic";
             } 
             if (incomingSerial[2] == 'm') {
               heaterPID.SetMode(MANUAL); 
-              //PIDmode = 0;
-              PIDmode = heaterPID.GetMode();
-              Serial.println(" PID set to MANUAL"); 
+              PIDmode = heaterPID.GetMode(); //should be 0
+              //Serial.println(" PID set to MANUAL"); 
+							msgBuffer +=" PID set to MANUAL";
             } 
             if (incomingSerial[2] == 'g') {
               heaterPID.SetMode(MANUAL); 
-              Serial.print(" PID is in mode: "); 
-              Serial.println(heaterPID.GetMode()); 
+              //Serial.print(" PID is in mode "); 
+              //Serial.println(heaterPID.GetMode()); 
+							msgBuffer +=" PID is in mode ";
+							msgBuffer += heaterPID.GetMode();
             }         
           } 
           else if (incomingSerial[1] == 'o') {
             char newOutput[3] = {incomingSerial[2],incomingSerial[3],incomingSerial[4]};
             PWMoutput = atof(newOutput);
-            Serial.print(" PWMoutput: "); 
-            Serial.println(PWMoutput); 
+            //Serial.print(" PWMoutput: "); 
+            //Serial.println(PWMoutput); 
+						msgBuffer += " PWMoutput set to "; 
+						msgBuffer += String(PWMoutput);
+           
+          }
+          else if (incomingSerial[1] == 'e') {
+            char newOutput[3] = {incomingSerial[2],incomingSerial[3],incomingSerial[4]};
+            PWMoutputIfError = atof(newOutput);
+            //Serial.print(" PWMoutputIfError: "); 
+            //Serial.println(PWMoutputIfError); 
+						msgBuffer += " PWMoutputIfError set to "; 
+						msgBuffer += String(PWMoutputIfError,1);
            
           }
           else if (incomingSerial[1] == 's') {
             char newSetpoint[3] = {incomingSerial[2],incomingSerial[3],incomingSerial[4]};
             glassSetpoint = atof(newSetpoint)/10.0;
             PIDSetpoint = glassSetpoint; 
-            Serial.print(" glassSetpoint: "); 
-            Serial.println(glassSetpoint); 
-           
+            //Serial.print(" glassSetpoint: "); 
+            //Serial.println(glassSetpoint); 
+            msgBuffer += " glassSetPoint set to ";
+						msgBuffer += String(glassSetpoint,1);
           }
           else if (incomingSerial[1] == 'l') {
             char upper[3] = {incomingSerial[2],incomingSerial[3],incomingSerial[4]};
             outPutMax = atof(upper);
             heaterPID.SetOutputLimits(0,outPutMax);
-            Serial.print("   heaterPID.SetOutputLimits(0,"); 
-            Serial.print(outPutMax);  
-            Serial.println(")");     
+            //Serial.print(" heaterPID.SetOutputLimits(0,"); 
+            //Serial.print(outPutMax);  
+            //Serial.println(")");     
+						msgBuffer += " heaterPID.SetOutputLimits(0,";
+						msgBuffer += String(outPutMax);
+						msgBuffer += ")";
+						
            }
           else if (incomingSerial[1] == 'h') {
             char holding[3] = {incomingSerial[2],incomingSerial[3],incomingSerial[4]};
             outPutHolding = atof(holding);
-            Serial.print("   outPutHolding now "); 
-            Serial.print(outPutHolding,2);  
-            Serial.println(" ");     
+            //Serial.print("   outPutHolding now "); 
+            //Serial.print(outPutHolding,2);  
+            //Serial.println(" ");     
+						msgBuffer += " outPutHolding now";
+						msgBuffer += String(outPutHolding,2);
            }
           else if (incomingSerial[1] == 'd') {
             char newDelay[4] = {incomingSerial[2],incomingSerial[3],incomingSerial[4],incomingSerial[5]};
@@ -311,28 +337,37 @@ void parsePIDCmd(){
             heaterPID.SetSampleTime(nd);
             Serial.print(" PID interval now ");
             Serial.println(newDelay);
+						msgBuffer +=" PID interval now ";
+						msgBuffer += Striong(newDelay,2);
            }
           else if (incomingSerial[1] == 't') {
              if (incomingSerial[2] == 'p') {
               char ppp[3] = {incomingSerial[3],incomingSerial[4],incomingSerial[5]};
               PIDKp = 0.0;
               PIDKp = double(atol(ppp))/10.0;
-              Serial.print(" Setting P = ");
-              Serial.println(PIDKp,1);
+              //Serial.print(" Setting P = ");
+              //Serial.println(PIDKp,1);
+							msgBuffer += " Setting P = ";
+              msgBuffer += String(PIDKp,1);
             }
              else if (incomingSerial[2] == 'i') {
               char iii[3] = {incomingSerial[3],incomingSerial[4],incomingSerial[5]};
               PIDKi = 0.0;
               PIDKi = atol(iii);
-              Serial.print(" Setting I = ");
-              Serial.println(PIDKi);
-            }
+              //Serial.print(" Setting I = ");
+              //Serial.println(PIDKi);
+              msgBuffer += " Setting I = ");
+              msgBuffer += String(PIDKi);
+
+						 }
              else if (incomingSerial[2] == 'd') {
               char ddd[3] = {incomingSerial[3],incomingSerial[4],incomingSerial[5]};
               PIDKd = 0.0;
               PIDKd = atol(ddd);
-              Serial.print(" Setting D = ");
-              Serial.println(PIDKd);
+              //Serial.print(" Setting D = ");
+              //Serial.println(PIDKd);
+              msgBuffer += " Setting D = ");
+              msgBuffer += String(PIDKd);
 
             }
             heaterPID.SetTunings(PIDKp,PIDKi,PIDKd);
