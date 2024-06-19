@@ -38,8 +38,13 @@ double PIDKp = 2, PIDKi = 96, PIDKd = 21;
 double PIDSetpoint, PIDInput, PIDOutput;
 double PWMoutput = 0.0;
 double PWMoutputLast = 0.0;
+double PWMoutputIfError = 10.0; //value used to hold glass temp warm but safe
+String errorBuffer;
+String msgBuffer;
+String logBuffer;
 bool PIDmode = 0; 
 long errorCode = 0; //catch all for errors
+
 bool errorAcknowledged = false;
 bool userOverRide = false;
 bool newPID = false; //check if output has changed since last loop
@@ -103,6 +108,10 @@ void setup()
 
   Wire.begin(); // Initialize communication with I2C devices
 
+  errorBuffer.reserve(256);
+  msgBuffer.reserve(128);
+  dataBuffer.reserve(512);
+	
 //%% - this feels redundant. Just need either PIDSetpoint or glassSetpoint
   // Initialize desired glass temperature
   PIDSetpoint = glassSetpoint;
@@ -243,6 +252,7 @@ void loop()
   delay(20); 
 }
 
+//consider moving this to a library
 void parsePIDCmd(){
       
         if (incomingSerial[0] == 'P') {
@@ -360,6 +370,7 @@ void getBuckConverterVoltage(double &newVoltage)
  
   // Convert the 0-1024 analog input to a voltage
   thisVoltage = (thisVoltage * boardVout) / 1024.0;   
+	
   //Correct for the voltage-divide upstream of the measured voltage
   thisVoltage = thisVoltage / (r2Coefficient / (r1Coefficient + r2Coefficient));
 
@@ -380,65 +391,64 @@ void getBuckConverterVoltage(double &newVoltage)
 
 void errorCheck(int &thisError)
 {
-  int newError =0; //assume all is well
-  
+  int newError = 0; //assume all is well
+	errorBuffer ="Error:";
   // Check if thermistor is not connected. Temp will read as -273C
   if ( glassTemperature < 0) {
       newError = 1;
       //Assume PID will be full throttle. Overrie to 0.
       PWMoutput = 0;
+      errorBuffer += String(newError,0);
+      errorBuffer += " The glass thermistor appears to be disconected. Output shut off.";
   } 
-
   
-  if (glassTemperature >= maxGlassTemperature) {
+  else if (glassTemperature >= maxGlassTemperature) {
       newError = 1;
       //gently throttle back the power output to reduce temperature
       //while too high output will half recursively - eventually to 0.
-      //does
-      PWMoutput = 20;
-
-      Serial.println("Error Code: 1 - max glass temp reached. Throttling back output");
+      PWMoutput = PWMoutputIfError;
+      errorBuffer += String(newError,0);
+      errorBuffer += " Max glass temp reached. Throttling output to ";
+      errorBuffer += String(PWMoutputIfError,0);
   }
-  
-  if (historyFilled) {
 
-    // calculate: delta over history, slope in C/min, check if at max temp
+	//Thermal run away. Getting hotter than setpoint and beyond minor overshoot      
+	else if (deltaFromSetPt>2.0) {
+			newError = 2;
+			errorBuffer += String(newError,0);
+			errorBuffer += " Thermal runaway detected. Throttling output to ";
+			errorBuffer += String(PWMoutputIfError,0);
+	}
+	  
+  else if (historyFilled) {
 
-    // now just use GlassTempSlope
-      double deltaOverTime = glassTemperature - glassTempHistory[endIndex];
-      double deltaFromSetPt = glassTemperature - glassSetpoint;
       //slope (over 50 samples) when ramping up can be >3 C/min, 
       //when stable, always within +/-0.7C/min
       //when off, falling from 35C in ambient temp, goes to ~ -1C/min
-     
-      //Thermal run away. Getting hotter than setpoint and beyond minor overshoot      
-      if (deltaFromSetPt>2.0) {
-      	newError = 2;
-      	Serial.println("Error Code: 2 - Thermal Run away detected. Throttling back"); 
-        //Throttle back to give a chance to self-correct
-        PWMoutput /= 2;  
-      }
 
-      //If temp not reaching desired setpoint and slope is relatively flat, 
-      // assume power is insufficient to reach setpoint
+      //If temp not reaching desired setpoint and slope is relatively flat, assume power is insufficient to reach setpoint
       if (deltaFromSetPt < -0.5 && glassTempSlope < 0.5 && glassTempSlope > -1  ) {
         newError = 3;
-        Serial.println("Error Code: 3 - Under-powered. Consider increasing max output or optimizing P constant"); 
+        Serial.println("Error Code: 3 - Under-powered. Consider increasing outPutMax. Enter h on serial monitor for instructions."); 
+				errorBuffer += String(newError,0);
+				errorBuffer += " Under-powered. Consider increasing outPutMax. Enter h on serial monitor for instructions.";
       }
 
-      // Heater failure: temperature falling unexpectedly when in auto mode
-      // assume power is insufficient to reach setpoint
-      if (deltaFromSetPt < -0.5 && glassTempSlope <= -1  ) {
+      // Heater failure: temperature falling unexpectedly. Assume power not getting to the heating elements
+      else if (deltaFromSetPt < -0.5 && glassTempSlope <= -1  ) {
         newError = 4;
-        //setOut to to 0
         PWMoutput = 0;
-        Serial.println("Error Code: 4 - Heater appears to have failed. "); 
+				errorBuffer += String(newError,0);
+				errorBuffer += " Heater failure detected. Shutting off output.";
       }
 
   }
+	else {
+		errorBuffer += String(newError,0);
+	}
 
   thisError = newError;
-  
+
 }
 
 void appendToGlassHistory(double value)
@@ -480,7 +490,39 @@ void printParametersToSerial()
   //need to recall/check syntax for float values with sprintf
   //char logString[];
   //sprintf(logString,"V(in):24.54  T(enclosure):33.36  T(glass):66.11  T(slope):0.04 T(mse):0.047  PWMOut:0.00 PIDKp:1.00  PIDKi:96.00 PIDKd:21.00 PIDmode:1 setPt(glass):66.00"
-  
+
+	logBuffer ="";
+	logBuffer += "V(in):"
+  logBuffer += String(buckConverterVoltage,2);
+  logBuffer += "\tT(enclosure):");
+  logBuffer += String(airTemperature,2);
+  logBuffer += "\tT(glass):");
+  logBuffer += String(glassTemperature,2);
+  logBuffer += "\tT(slope):");
+  logBuffer += String(glassTempSlope,2);
+  logBuffer += "\tT(mse):");
+  logBuffer += String(mseTemp,3);
+  logBuffer += "\tPWMOut:");
+  logBuffer += String(PWMoutput);
+  logBuffer += "\tPIDKp:");
+  logBuffer += String(PIDKp);
+  logBuffer += "\tPIDKi:");
+  logBuffer += String(PIDKi);
+  logBuffer += "\tPIDKd:");
+  logBuffer += String(PIDKd);
+  logBuffer += "\tPIDmode:");
+  logBuffer += String(PIDmode);
+  logBuffer += "\tsetPt(glass):");
+  logBuffer += String(glassSetpoint,1);
+  logBuffer +=  errorBuffer;
+	logBuffer +=  msgBuffer;
+
+	Serial.print(logBuffer);
+	logBuffer ="";
+	msgBuffer = "/t";
+	errorBuffer = "/t";
+
+			/*
   Serial.print("V(in):");    
   Serial.print(buckConverterVoltage,2);
   Serial.print("\tT(enclosure):");
@@ -505,5 +547,7 @@ void printParametersToSerial()
   Serial.print(glassSetpoint);
   Serial.print("\tError:");
   Serial.println(errorCode);
- 
+*/
+
+	
 }
