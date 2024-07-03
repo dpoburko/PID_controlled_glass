@@ -338,13 +338,13 @@ void loop()
     if (isNewPID == true) 
     {
       PWMOutput = PIDOutput;
+			// Perform a series of tests on thermistor reading and temperature vs. setpoint and over time
+		  
+			// Perform series of temperature error checks and override PWMOutput if indicated
+		  ErrorCheck(errorCode);
+	    
     } 
   }
-   
-  // Perform a series of tests on thermistor reading and temperature vs. setpoint and over time
-  // Override PWMOutput if indicated
-  ErrorCheck(errorCode);
-  // Need to concatenate a message to the serial output line
 	
   // If the output from the PID is different from the previous output, adjust the pulse-width modulator duty cycle
   if (PWMOutput!= PWMOutputLast) 
