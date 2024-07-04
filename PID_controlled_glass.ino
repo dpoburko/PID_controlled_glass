@@ -18,7 +18,7 @@
 // Wire library for I2C communication (must be downloaded)
 #include <Wire.h>
 // Steinhart library for the thermistor/calculations (must be downloaded)
-#include <STEINHART.h>
+#include "STEINHART.h"
 
 // *************************************************************************************************************************************
 // PINS
@@ -77,11 +77,11 @@ double currentMaximumPIDOutput = maximumConservativePIDOutput;
 
 // Error variables
 int errorCode = 0; // Izzy's edit: errorCode was initially a long but I changed it to an int since ErrorCheck() requires a parameter of type int
-bool isErrorAcknowledged = false;
+bool isErrorAcknowledged = true;
+bool isErrorBuffered = false;
 bool isUserOverride = false;
-String errorBuffer;
-String msgBuffer;
-String logBuffer;
+String errorBuffer,  msgBuffer, logBuffer;
+
 
 // *************************************************************************************************************************************
 // STEINHART EQUATION VARIABLES
@@ -234,6 +234,7 @@ void setup()
 
   // Set up PID output limits  
   heaterPID.SetOutputLimits(0, maximumAggressivePIDOutput); 
+  heaterPID.SetSampleTime(glassVoltageReadingInterval); 
 
   // Set frequency of voltage readings for thermistor 1
   thermistor1.setSampleTime(glassVoltageReadingInterval);
@@ -307,7 +308,7 @@ void loop()
         heaterPID.SetOutputLimits(0, currentMaximumPIDOutput);
 
         // Print a message to the serial
-        msgBuffer += " For rapid heating setting currentMaximumPIDOutput to ";
+        msgBuffer += " Switching to maximumAggressivePIDOutput_";
 				msgBuffer += String(maximumAggressivePIDOutput);
       } 
     }
@@ -322,8 +323,8 @@ void loop()
         heaterPID.SetOutputLimits(0, currentMaximumPIDOutput);
 
         // Print a message to the serial
-        msgBuffer += " For maintenance heating setting currentMaximumPIDOutput to ";
-				msgBuffer += String(maximumAggressivePIDOutput);
+        msgBuffer += " Switch to maximumConservativePIDOutput_";
+				msgBuffer += String(maximumConservativePIDOutput);
       }
     }
   }
@@ -460,7 +461,7 @@ void ParsePIDCmd()
       {
         PIDMode = manualPIDMode;
         heaterPID.SetMode(PIDMode); 
-        msgBuffer += " PID is in mode ";
+        msgBuffer += " PID mode is ";
 				msgBuffer += heaterPID.GetMode();  
       }         
     } 
@@ -468,14 +469,14 @@ void ParsePIDCmd()
     {
       char newOutput[3] = {incomingSerial[2],incomingSerial[3],incomingSerial[4]};
       PWMOutput = atof(newOutput);
-      msgBuffer += " PWMoutput set to "; 
+      msgBuffer += " PWMoutput now "; 
 			msgBuffer += String(PWMOutput);  
     }
     else if (incomingSerial[1] == 'e') 
     {
       char newOutput[3] = {incomingSerial[2],incomingSerial[3],incomingSerial[4]};
       PWMOutputIfError = atof(newOutput); 
-			msgBuffer += " PWMoutputIfError set to "; 
+			msgBuffer += " PWMoutputIfError now "; 
 			msgBuffer += String(PWMOutputIfError, 1);
            
     }
@@ -484,7 +485,7 @@ void ParsePIDCmd()
       char newSetpoint[3] = {incomingSerial[2],incomingSerial[3],incomingSerial[4]};
       glassSetpoint = atof(newSetpoint)/10.0;
       glassSetpoint = glassSetpoint; 
-      msgBuffer += " glassSetpoint set to ";
+      msgBuffer += " glassSetpoint now ";
 			msgBuffer += String(glassSetpoint,1); 
     }
     else if (incomingSerial[1] == 'l') 
@@ -607,36 +608,49 @@ void ErrorCheck(int &thisError)
   // Assume all is well
   int newError = 0;
   
+  
   // Check if thermistor is not connected. Temp will read as -273C
   if (glassTemperature < 0) 
   {
     newError = 1;
     // Assume PID will be full throttle. Override to 0.
     PWMOutput = 0;
-    errorBuffer += String(newError, 0);
-    errorBuffer += " The glass thermistor appears to be disconected. Output shut off.";
+    if (!isErrorBuffered)
+    {
+      isErrorBuffered = true;
+      errorBuffer += newError;
+      errorBuffer += " Glass thermistor disconected. Output shut off.";
+    }
   } 
 
   
   else if (glassTemperature >= maxGlassTemperature) 
   {
-    newError = 1;
+    newError = 2;
     // Gently throttle back the power output to reduce temperature
     // While too high output will halve recursively - eventually to 0
     PWMOutput = PWMOutputIfError;
-    errorBuffer += String(newError, 0);
-    errorBuffer += " Max glass temp reached. Throttling output to ";
-    errorBuffer += String(PWMOutputIfError, 0);
+    if (!isErrorBuffered)
+    {
+      isErrorBuffered = true;
+      errorBuffer += newError;
+      errorBuffer += " Glass >= max temp. Throttling output to ";
+      errorBuffer += String(PWMOutputIfError, 0);
+    }
   }
 
   // Thermal run away. Getting hotter than setpoint and beyond minor overshoot      
 	else if (glassTemperatureGapFromSetpoint > 2.0) 
   {
-		newError = 2;
-		errorBuffer += String(newError, 0);
-		errorBuffer += " Thermal runaway detected. Throttling output to ";			
-    errorBuffer += String(PWMOutputIfError, 0);
+    if (!isErrorBuffered)
+    {
+  		newError = 3;
+  		errorBuffer += newError;
+  		errorBuffer += " Thermal runaway detected. Throttling output to ";			
+      errorBuffer += String(PWMOutputIfError, 0);
+    }
   }
+  
   else if (isHistoryArraysFilled) 
   {
 
@@ -647,25 +661,33 @@ void ErrorCheck(int &thisError)
     // If temp not reaching desired setpoint and slope is relatively flat, assume power is insufficient to reach setpoint
     if (glassTemperatureGapFromSetpoint < -0.5 && glassTemperatureSlope < 0.5 && glassTemperatureSlope > -1) 
     {
-      newError = 3;
-      Serial.println("Error Code: 3 - Under-powered. Consider increasing maximum output. Enter h on serial monitor for instructions."); 
-			errorBuffer += String(newError, 0);
-			errorBuffer += " Under-powered. Consider increasing maximum output. Enter h on serial monitor for instructions.";
+      if (!isErrorBuffered)
+      {
+        newError = 4;
+        errorBuffer += newError;
+  			errorBuffer += " Under-powered. Increase max output.";
+      }
     }
 
     // Heater failure: temperature falling unexpectedly. Assume power not getting to the heating elements
     else if (glassTemperatureGapFromSetpoint < -0.5 && glassTemperatureSlope <= -1) 
     {
-      newError = 4;
-      PWMOutput = 0;
-			errorBuffer += String(newError, 0);
-			errorBuffer += " Heater failure detected. Shutting off output.";
+      if (!isErrorBuffered)
+      {
+        newError = 5;
+        PWMOutput = 0;
+  			errorBuffer += newError;
+  			errorBuffer += " Heater failure. Output - off.";
+      }
     }
-
+    else 
+    {
+      errorBuffer += newError;
+    }
   }
 	else 
   {
-		errorBuffer += String(newError, 0);
+		errorBuffer += newError;
 	}
 
   thisError = newError;
@@ -740,13 +762,16 @@ void PrintParametersToSerial()
   logBuffer += String(PIDMode);
   logBuffer += "\tsetPt(glass):";
   logBuffer += String(glassSetpoint, 1);
+  logBuffer += "\tError:";
   logBuffer += errorBuffer;
+	logBuffer += "\tMsg:";
 	logBuffer += msgBuffer;
-
+  logBuffer += "\n\r";
 	Serial.print(logBuffer);
 	logBuffer = "";
-	msgBuffer = "/t";
-	errorBuffer = "/t";
+	msgBuffer = " ";
+	errorBuffer = " ";
+  isErrorBuffered = false;
 
   /*
   Serial.print("V(in):");    
