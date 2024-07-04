@@ -77,6 +77,8 @@ double currentMaximumPIDOutput = maximumConservativePIDOutput;
 
 // Error variables
 int errorCode = 0; // Izzy's edit: errorCode was initially a long but I changed it to an int since ErrorCheck() requires a parameter of type int
+int errorCodePrevious = 0; // keep track of previous error code
+double timeErrorAcknowledged =0; //for keeping track of when error was acknowledged 
 bool isErrorAcknowledged = true;
 bool isErrorBuffered = false;
 bool isUserOverride = false;
@@ -187,7 +189,7 @@ int lastSerialDisplay = 0;
 // *************************************************************************************************************************************
 
 // Indicate the voltage of the dev board digital outputs
-const double boardVoltageOut = 3.3;
+const double boardVoltageOut = 5.0; //Arduino Uno is 5V, Adalogger is 3.3V
 
 // Variable to store buck converter voltage
 double buckConverterVoltage = 0;
@@ -389,7 +391,7 @@ void loop()
         isUserOverride = true;  
       }
       // If user inputted OK, indicate that the error acknowledgement has been received
-      else if ((incomingSerial[0] == 'O') & (incomingSerial[0] == 'K')) 
+      else if ((incomingSerial[0] == 'O') & (incomingSerial[1] == 'K')) 
       {
         // Print acknowledgement to serial
         Serial.println("OK. Error acknowledgement received");
