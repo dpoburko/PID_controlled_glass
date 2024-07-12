@@ -1,28 +1,28 @@
 # Introduction
-We are aiming to create the base code needed to control a resistively heated sheet of glass. This glass will be the lid of a stage-top incubator on a microscope stage. 
+We have aimed to create the code needed to control a resistively heated sheet of glass. This glass will be the lid of a stage-top incubator on a microscope stage. 
 The incubator needs to control:
 1) Monitor and set the temperature of the heated glass lid
 2) Monitor the air temperature in the incubator, and aim to sustain 37C by adjusting the temperature of the lid
-3) CO2 levels, measured as %
+3) Monitor CO2 levels, measured as % 
 4) Monitor relative humidity, which will be a function of temparature. Ideally, the system would alert the user (audibly or electronically) if the RH falls below some expected level once temperature stabilizes
 5) Integrate the temperature control into the current code that controls CO2 and data logging
     
 # Approach to heating
-## Find a PID library
-Start with using Brett Beuaregard's PID library, which seems to be the current open access gold standard
+## Employ a well-validated PID library
+We are using Brett Beuaregard's PID library, which seems to be the current open access gold standard
 http://brettbeauregard.com/blog/2011/04/improving-the-beginners-pid-introduction/
 
 ## Optimize the PID controller
 
-This stage will need to rewuire that we assess:
+This stage will need to require that we assess:
 ### 1) A reasonable voltage to apply to the heater
-   The heater lid from Cell MicroControls (~8 Ohms, 80 x 120 mm) did not provide sufficient heat to warm the incubator, event at ~60C
-   We needed to revert to our larger sheet of glass with our DIY resistive system
-   We are currently using 5 mm thick glass to provide a more crack-resistant substrate
+   Cell MicroControls' ITO coated glass (~8 Ohms, 80 x 120 mm) did not provide sufficient heat to warm the incubator, event at ~60C
+   We reverted to our 110 x 145 x 5 mm sheet of soft glass with our DIY resistive system (Permatex 09227 Rear Window Defogger Repair Ki)
+   We moved from ~2 mm to 5 mm thick glass to reduce the chance of uneven heating causing cracking
    Our current "ladder" heater design has resistance of ~ 2.8 Ohms. Slightly higher (5-8 Ohsm) would be better
    Current (I, Amps) = voltage / resistance, where we have a variable Bucker Converter to manually adjust between 0-24 V
    heating Power ( P, watts) = V^2 / R
-   So in principles, we should be able to increase power faster than current increases (heating other components)
+   In principle, we should be able to increase power faster than current increases (heating other components)
 
 ### 2) Optimize the PID constants of the PID controller
 
