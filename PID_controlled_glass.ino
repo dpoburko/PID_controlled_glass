@@ -57,6 +57,12 @@ enumPIDMode PIDMode;
 // Check if output has changed since last loop
 bool isNewPID = false;
 
+// Interval for updating glass setpoint (10 minutes or 600000 milliseconds)
+int glassSetpointInterval = 600000;
+
+// Variable to store when the last glass setpoint update happened
+int lastGlassSetpointUpdate = 0;
+
 // *************************************************************************************************************************************
 // SAFETY VARIABLES
 // *************************************************************************************************************************************
@@ -137,6 +143,9 @@ double glassTemperatureSlope = 0.0;
 
 // Variable to store air temperature
 double airTemperature = 20.0;
+
+// Air temperature goal
+double airTemperatureSetpoint = 37.0;
 
 // Size of arrays used for logging temperature and temperature error
 const int historyArraysSize = 60;
@@ -348,6 +357,9 @@ void loop()
 	    
     } 
   }
+
+  // Check to see if the glass setpoint needs to be updated
+  CheckGlassSetpoint();
 	
   // If the output from the PID is different from the previous output, adjust the pulse-width modulator duty cycle
   if (PWMOutput!= PWMOutputLast) 
@@ -428,7 +440,7 @@ void loop()
         Serial.println("   Serial command not recognized. Press 'h' for help");
       }
     }
-   }
+  }
 
   // Delay determines how often loop repeats
   delay(20); 
@@ -801,4 +813,48 @@ void PrintParametersToSerial()
   Serial.print("\tError:");
   Serial.println(errorCode);
   */
+}
+
+void CheckGlassSetpoint()
+{
+  // Current time in milliseconds since the program has been running
+  int currentTimeMilliseconds = millis();
+
+  // If it has been long enough since the last glass setpoint update and the history array has enough data, check if the glass setpoint needs to be updated
+  if ((currentTimeMilliseconds - lastGlassSetpointUpdate) >= glassSetpointInterval && historyArraysIndex > 10)
+  {
+    // Glass temperature slope over ten reads in degrees/minute
+    float glassTemperatureSlopeOverTenReads = (glassTemperature - glassTemperatureHistory[historyArraysSize - 10]) / (historyArraysSize * glassVoltageReadingInterval/60000);
+    
+    // Calculate gap from air temperature setpoint
+    int gapFromAirTemperatureSetpoint = airTemperature - airTemperatureSetpoint;
+
+    // If the glass temperature has been stable and the air temperature is significantly higher than the air temperature setpoint, update the glass setpoint
+    if (abs(glassTemperatureSlopeOverTenReads) <= 0.2 && gapFromAirTemperatureSetpoint > 0.5)
+    {
+      // Reduce the glass setpoint
+      glassSetpoint = glassSetpoint - 0.5;
+
+      // Update the last glass setpoint update time to the current time
+      lastGlassSetpointUpdate = currentTimeMilliseconds;
+
+      // Send a message to the serial
+      msgBuffer += "Glass Setpoint updated to ";
+      msgBuffer += String(glassSetpoint);
+    }
+
+    // If the glass temperature has been stable and the air temperature is significantly lower than the air temperature setpoint, update the glass setpoint
+    if (abs(glassTemperatureSlopeOverTenReads) <= 0.2 && gapFromAirTemperatureSetpoint < -0.5)
+    {
+      // Increase the glass setpoint
+      glassSetpoint = glassSetpoint + 0.5;
+
+      // Update the last glass setpoint update time to the current time
+      lastGlassSetpointUpdate = currentTimeMilliseconds;
+
+      // Send a message to the serial
+      msgBuffer += "Glass Setpoint updated to ";
+      msgBuffer += String(glassSetpoint);
+    }
+  }
 }
