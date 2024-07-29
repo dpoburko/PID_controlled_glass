@@ -815,17 +815,29 @@ void PrintParametersToSerial()
   */
 }
 
+/*
+@Izzy, we will need to check glass temp stability over a longer period than 10 reads (that's ~20 sec). The slope over 10 measures will be highigly variable.
+I suggest we just take the current slope measure at the current time point. This will be a quiter value, especially when we sort out the spurious filtering.
+It might also be helpful to keep a measure of the previous airTemp measurement AND
+create a boolean variable like AirTemperatureSetpointReached to check if the system has crossed the threshold of heating. If no, there is probably no need to adjust the glass set point yet.
+*/
+
 void CheckGlassSetpoint()
 {
   // Current time in milliseconds since the program has been running
   int currentTimeMilliseconds = millis();
 
   // If it has been long enough since the last glass setpoint update and the history array has enough data, check if the glass setpoint needs to be updated
-  if ((currentTimeMilliseconds - lastGlassSetpointUpdate) >= glassSetpointInterval && historyArraysIndex > 10)
+  //if ((currentTimeMilliseconds - lastGlassSetpointUpdate) >= glassSetpointInterval && historyArraysIndex > 10) 
+  //@Izzy, because the histories use a circular buffer model, we can't rely on historyArraysIndex to assess if the history has enough data. This is what isHistoryArraysFilled is for
+  // I suggest the following edit
+  if ((currentTimeMilliseconds - lastGlassSetpointUpdate) >= glassSetpointInterval && isHistoryArraysFilled == true)
+
+	  
   {
     // Glass temperature slope over ten reads in degrees/minute
     float glassTemperatureSlopeOverTenReads = (glassTemperature - glassTemperatureHistory[historyArraysSize - 10]) / (historyArraysSize * glassVoltageReadingInterval/60000);
-    
+	  
     // Calculate gap from air temperature setpoint
     int gapFromAirTemperatureSetpoint = airTemperature - airTemperatureSetpoint;
 
