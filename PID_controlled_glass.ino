@@ -138,14 +138,23 @@ int glassVoltageReadingInterval = 2000;
 // Variable to store glass temperature (in degrees Celsius)
 double glassTemperature = 0.0;
 
+// Variable to store previous glass temperature (in degrees Celsius)
+double previousGlassTemperature = 0.0;
+
 // Variable to store the slope of the glass temperature change
 double glassTemperatureSlope = 0.0;
 
 // Variable to store air temperature
 double airTemperature = 20.0;
 
+// Variable to store previous air temperature
+double previousAirTemperature = 0;
+
 // Air temperature goal
 double airTemperatureSetpoint = 37.0;
+
+// Boolean to check if the air temperature setpoint has been reached
+bool isAirTemperatureSetpointReached = false;
 
 // Size of arrays used for logging temperature and temperature error
 const int historyArraysSize = 60;
@@ -282,6 +291,9 @@ void loop()
     // Get the voltage from the tunable buck converter (what do we do with this?)
     GetBuckConverterVoltage(buckConverterVoltage);
 
+    // Check to make sure the data point makes sense, and reassign the value if necessary
+    RemoveErroneousGlassTemperatureReadings();
+
     // Log the glass temperature in an array
     AppendToGlassHistory(glassTemperature);
 
@@ -358,8 +370,20 @@ void loop()
     } 
   }
 
-  // Check to see if the glass setpoint needs to be updated
-  CheckGlassSetpoint();
+  // Check if the air temperature is sufficiently heated
+  if (airTemperature >= airTemperatureSetpoint)
+  {
+    isAirTemperatureSetpointReached = true;
+  }
+
+  // Check to see if the glass setpoint needs to be updated, only if airTemperatureSetpointReached is true
+  if (isAirTemperatureSetpointReached)
+  {
+    CheckGlassSetpoint();
+  }
+
+  // It doesn't seem like we have a function yet that reads the air temperature in this file, but here is the line of code that would set the previousAirTemperature value
+  previousAirTemperature = airTemperature;
 	
   // If the output from the PID is different from the previous output, adjust the pulse-width modulator duty cycle
   if (PWMOutput!= PWMOutputLast) 
@@ -441,6 +465,8 @@ void loop()
       }
     }
   }
+
+  previousGlassTemperature = glassTemperature;
 
   // Delay determines how often loop repeats
   delay(20); 
@@ -815,34 +841,19 @@ void PrintParametersToSerial()
   */
 }
 
-/*
-@Izzy, we will need to check glass temp stability over a longer period than 10 reads (that's ~20 sec). The slope over 10 measures will be highigly variable.
-I suggest we just take the current slope measure at the current time point. This will be a quiter value, especially when we sort out the spurious filtering.
-It might also be helpful to keep a measure of the previous airTemp measurement AND
-create a boolean variable like AirTemperatureSetpointReached to check if the system has crossed the threshold of heating. If no, there is probably no need to adjust the glass set point yet.
-*/
-
 void CheckGlassSetpoint()
 {
   // Current time in milliseconds since the program has been running
   int currentTimeMilliseconds = millis();
 
   // If it has been long enough since the last glass setpoint update and the history array has enough data, check if the glass setpoint needs to be updated
-  //if ((currentTimeMilliseconds - lastGlassSetpointUpdate) >= glassSetpointInterval && historyArraysIndex > 10) 
-  //@Izzy, because the histories use a circular buffer model, we can't rely on historyArraysIndex to assess if the history has enough data. This is what isHistoryArraysFilled is for
-  // I suggest the following edit
   if ((currentTimeMilliseconds - lastGlassSetpointUpdate) >= glassSetpointInterval && isHistoryArraysFilled == true)
-
-	  
   {
-    // Glass temperature slope over ten reads in degrees/minute
-    float glassTemperatureSlopeOverTenReads = (glassTemperature - glassTemperatureHistory[historyArraysSize - 10]) / (historyArraysSize * glassVoltageReadingInterval/60000);
-	  
     // Calculate gap from air temperature setpoint
     int gapFromAirTemperatureSetpoint = airTemperature - airTemperatureSetpoint;
 
     // If the glass temperature has been stable and the air temperature is significantly higher than the air temperature setpoint, update the glass setpoint
-    if (abs(glassTemperatureSlopeOverTenReads) <= 0.2 && gapFromAirTemperatureSetpoint > 0.5)
+    if (abs(glassTemperatureSlope) <= 0.2 && gapFromAirTemperatureSetpoint > 0.5)
     {
       // Reduce the glass setpoint
       glassSetpoint = glassSetpoint - 0.5;
@@ -856,7 +867,7 @@ void CheckGlassSetpoint()
     }
 
     // If the glass temperature has been stable and the air temperature is significantly lower than the air temperature setpoint, update the glass setpoint
-    if (abs(glassTemperatureSlopeOverTenReads) <= 0.2 && gapFromAirTemperatureSetpoint < -0.5)
+    if (abs(glassTemperatureSlope) <= 0.2 && gapFromAirTemperatureSetpoint < -0.5)
     {
       // Increase the glass setpoint
       glassSetpoint = glassSetpoint + 0.5;
@@ -868,5 +879,18 @@ void CheckGlassSetpoint()
       msgBuffer += "Glass Setpoint updated to ";
       msgBuffer += String(glassSetpoint);
     }
+  }
+}
+
+void RemoveErroneousGlassTemperatureReadings()
+{
+  // Calculate difference between current glass temperature and previous glass temperature reading
+  double glassTemperatureDataDifference = abs(glassTemperature - previousGlassTemperature);
+
+  // If the difference is significant and a previousGlassTemperature value exists, reassign the reading a new value
+  if (glassTemperatureDataDifference > 0.25 && previousGlassTemperature != 0)
+  {
+    // Reassign this inaccurate data point to the value of the previous reading
+    glassTemperature = previousGlassTemperature;
   }
 }
