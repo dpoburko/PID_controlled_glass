@@ -1,7 +1,5 @@
 // *************************************************************************************************************************************
-// *************************************************************************************************************************************
 // INCUBATOR PID TEMPERATURE CONTROL
-// *************************************************************************************************************************************
 // *************************************************************************************************************************************
 
 // For wiring details of voltmeter see:
@@ -58,7 +56,7 @@ enumPIDMode PIDMode;
 bool isNewPID = false;
 
 // Interval for updating glass setpoint (10 minutes or 600000 milliseconds)
-int glassSetpointInterval = 600000;
+int glassSetpointInterval = 240000;
 
 // Variable to store when the last glass setpoint update happened
 int lastGlassSetpointUpdate = 0;
@@ -88,6 +86,7 @@ double timeErrorAcknowledged =0; //for keeping track of when error was acknowled
 bool isErrorAcknowledged = true;
 bool isErrorBuffered = false;
 bool isUserOverride = false;
+double errorGraceTime = 180000; //in ms
 String errorBuffer,  msgBuffer, logBuffer;
 
 
@@ -150,11 +149,13 @@ double airTemperature = 20.0;
 // Variable to store previous air temperature
 double previousAirTemperature = 0;
 
-// Air temperature goal
+// Air temperature goal & allowable deviation
 double airTemperatureSetpoint = 37.0;
+double airTemperatureTolerance = 0.1;
 
 // Boolean to check if the air temperature setpoint has been reached
 bool isAirTemperatureSetpointReached = false;
+bool isAirTemperatureSetpointNoted = false;
 
 // Size of arrays used for logging temperature and temperature error
 const int historyArraysSize = 60;
@@ -233,7 +234,7 @@ PID heaterPID(&glassTemperature, &PIDOutput, &glassSetpoint, PIDKp, PIDKi, PIDKd
 void setup()
 {
   // Open serial port, set data rate to 9600 bps
-  Serial.begin(9600);
+  Serial.begin(57600);
   // Delay helps fix serial glitch
   delay(1000);
 
@@ -370,10 +371,15 @@ void loop()
     } 
   }
 
+//*** Need to update this to reset isAirTemperatureSetpointNoted 
   // Check if the air temperature is sufficiently heated
   if (airTemperature >= airTemperatureSetpoint)
   {
     isAirTemperatureSetpointReached = true;
+    if (isAirTemperatureSetpointNoted == false) {
+      msgBuffer += " air temperature set point reached"; 
+      isAirTemperatureSetpointNoted = true;
+    }
   }
 
   // Check to see if the glass setpoint needs to be updated, only if airTemperatureSetpointReached is true
@@ -434,6 +440,9 @@ void loop()
 
         // Set error acknowledged boolean to true
         isErrorAcknowledged = true; 
+        //record time when error acknolwedged
+        timeErrorAcknowledged =millis() ;
+        
       }
       // If user inputted h, H, or ?, print out available serial commands
       else if (incomingSerial[0] == 'h' || incomingSerial[0] == 'H' || incomingSerial[0] == '?') 
@@ -445,17 +454,17 @@ void loop()
         Serial.println("   Pmm - call  heaterPID.SetMode(manualPIDMode)");
         Serial.println("   Pmg - call  heaterPID.GetMode()");
         Serial.println("   Psnnn - update glassSetpoint as nn.n degrees");
-        
+        Serial.println("   Pannn - update air temp Setpoint as nn.n degrees");
         Serial.println("   Ponnn. - manually set PWMOutput (only usual in manualPIDMode mode");
         Serial.println("   Plnnn. - call heaterPID.SetOutputLimits(0, nnn)");
         Serial.println("   Phnnn. - updated holding PWM");
         Serial.println("   Ptpnnn. - heaterPID.SetTunings(nnn,iii,ddd)");
         Serial.println("   Ptinnn. - heaterPID.SetTunings(ppp,nnn,ddd)");
         Serial.println("   Ptdnnn. - heaterPID.SetTunings(ppp,iii,nnn)");
-        
         Serial.println("   Pdnnnn. - call heaterPID.SetSampleTime(nnnn) & STEINHART::setSampleTime(nnnn)");
         Serial.println("   Tp - print temperature history");
         Serial.println("   Ep - print mse history");
+        Serial.println("   OK - to acknowledge/ignore error");
         Serial.println("   >>>>>>>>>>>>>><<<<<<<<<<<<<<<<");
       }
       // If another message is inputted, print to the serial that the message was not recognized
@@ -524,9 +533,17 @@ void ParsePIDCmd()
     {
       char newSetpoint[3] = {incomingSerial[2],incomingSerial[3],incomingSerial[4]};
       glassSetpoint = atof(newSetpoint)/10.0;
-      glassSetpoint = glassSetpoint; 
+      //glassSetpoint = glassSetpoint; 
       msgBuffer += " glassSetpoint now ";
 			msgBuffer += String(glassSetpoint,1); 
+    }
+    else if (incomingSerial[1] == 'a') 
+    {
+      char newSetpoint[3] = {incomingSerial[2],incomingSerial[3],incomingSerial[4]};
+      airTemperatureSetpoint = atof(newSetpoint)/10.0;
+      //glassSetpoint = glassSetpoint; 
+      msgBuffer += " airTemperatureSetpoint now ";
+      msgBuffer += String(airTemperatureSetpoint,1); 
     }
     else if (incomingSerial[1] == 'l') 
     {
@@ -589,7 +606,6 @@ void ParsePIDCmd()
       Serial.print(glassTemperatureHistory[i]);
       Serial.print(", "); 
     }
-    
     Serial.println(" ");
   } 
   else if(incomingSerial[0] == 'E' && incomingSerial[1] == 'p' )
@@ -599,7 +615,6 @@ void ParsePIDCmd()
       Serial.print(mseGlassTemperatureHistory[i]);
       Serial.print(", "); 
     }
-            
     Serial.println(" ");
   } 
   else 
@@ -647,36 +662,55 @@ void ErrorCheck(int &thisError)
 
   // Assume all is well
   int newError = 0;
+  /*
+   * if acknowledged == true
+   * check if gracer period is elapsed, if yes, clear acknolwdged
+   */
+
+  //if an error has been acknolwedged, check if the grace time has expired and reset isErrorAcknowledged to false
+  //isErrorAcknowledged & timeErrorAcknowledged will need to be arrays to keep track of each type of error type
   
+  if (isErrorAcknowledged == true) {
+    if ( (millis() - timeErrorAcknowledged) >= errorGraceTime)
+    {
+      isErrorAcknowledged = false;
+    }
+  }
   
   // Check if thermistor is not connected. Temp will read as -273C
   if (glassTemperature < 0) 
   {
-    newError = 1;
-    // Assume PID will be full throttle. Override to 0.
-    PWMOutput = 0;
-    if (!isErrorBuffered)
-    {
-      isErrorBuffered = true;
-      errorBuffer += newError;
-      errorBuffer += " Glass thermistor disconected. Output shut off.";
-    }
+    //only log and action error if not already acknolwedged
+        newError = 1;
+        //check if 
+        errorCodePrevious = newError;
+        // Assume PID will be full throttle. Override to 0.
+        PWMOutput = 0;
+        if (!isErrorBuffered)
+        {
+          isErrorBuffered = true;
+          errorBuffer += newError;
+          errorBuffer += " Glass thermistor disconected. Output shut off.";
+        }
   } 
 
   
   else if (glassTemperature >= maxGlassTemperature) 
   {
-    newError = 2;
-    // Gently throttle back the power output to reduce temperature
-    // While too high output will halve recursively - eventually to 0
-    PWMOutput = PWMOutputIfError;
-    if (!isErrorBuffered)
-    {
-      isErrorBuffered = true;
-      errorBuffer += newError;
-      errorBuffer += " Glass >= max temp. Throttling output to ";
-      errorBuffer += String(PWMOutputIfError, 0);
-    }
+    if ((errorCodePrevious != 1) & (isErrorAcknowledged==false)) {
+      newError = 2;
+      errorCodePrevious = newError;
+      // Gently throttle back the power output to reduce temperature
+      // While too high output will halve recursively - eventually to 0
+      PWMOutput = PWMOutputIfError;
+      if (!isErrorBuffered)
+      {
+        isErrorBuffered = true;
+        errorBuffer += newError;
+        errorBuffer += " Glass >= max temp. Throttling output to ";
+        errorBuffer += String(PWMOutputIfError, 0);
+      }
+    }  
   }
 
   // Thermal run away. Getting hotter than setpoint and beyond minor overshoot      
@@ -685,6 +719,7 @@ void ErrorCheck(int &thisError)
     if (!isErrorBuffered)
     {
   		newError = 3;
+     errorCodePrevious = newError;
   		errorBuffer += newError;
   		errorBuffer += " Thermal runaway detected. Throttling output to ";			
       errorBuffer += String(PWMOutputIfError, 0);
@@ -704,6 +739,7 @@ void ErrorCheck(int &thisError)
       if (!isErrorBuffered)
       {
         newError = 4;
+        errorCodePrevious = newError;
         errorBuffer += newError;
   			errorBuffer += " Under-powered. Increase max output.";
       }
@@ -715,6 +751,7 @@ void ErrorCheck(int &thisError)
       if (!isErrorBuffered)
       {
         newError = 5;
+        errorCodePrevious = newError;
         PWMOutput = 0;
   			errorBuffer += newError;
   			errorBuffer += " Heater failure. Output - off.";
@@ -812,33 +849,7 @@ void PrintParametersToSerial()
 	msgBuffer = " ";
 	errorBuffer = " ";
   isErrorBuffered = false;
-
-  /*
-  Serial.print("V(in):");    
-  Serial.print(buckConverterVoltage,2);
-  Serial.print("\tT(enclosure):");
-  Serial.print(airTemperature,2);
-  Serial.print("\tT(glass):");
-  Serial.print(glassTemperature,2);
-  Serial.print("\tT(slope):");
-  Serial.print(glassTempSlope,2);
-  Serial.print("\tT(mse):");
-  Serial.print(mseTemp,3);
-  Serial.print("\tPWMOut:");
-  Serial.print(PWMoutput);
-  Serial.print("\tPIDKp:");
-  Serial.print(PIDKp);
-  Serial.print("\tPIDKi:");
-  Serial.print(PIDKi);
-  Serial.print("\tPIDKd:");
-  Serial.print(PIDKd);
-  Serial.print("\tPIDmode:");
-  Serial.print(PIDmode);
-  Serial.print("\tsetPt(glass):");
-  Serial.print(glassSetpoint);
-  Serial.print("\tError:");
-  Serial.println(errorCode);
-  */
+ 
 }
 
 void CheckGlassSetpoint()
@@ -850,13 +861,28 @@ void CheckGlassSetpoint()
   if ((currentTimeMilliseconds - lastGlassSetpointUpdate) >= glassSetpointInterval && isHistoryArraysFilled == true)
   {
     // Calculate gap from air temperature setpoint
-    int gapFromAirTemperatureSetpoint = airTemperature - airTemperatureSetpoint;
+    float airTemperatureDeviation = airTemperature - airTemperatureSetpoint;
 
     // If the glass temperature has been stable and the air temperature is significantly higher than the air temperature setpoint, update the glass setpoint
-    if (abs(glassTemperatureSlope) <= 0.2 && gapFromAirTemperatureSetpoint > 0.5)
+    if (abs(glassTemperatureSlope) <= 0.2 && abs(airTemperatureDeviation)>airTemperatureTolerance)
     {
-      // Reduce the glass setpoint
-      glassSetpoint = glassSetpoint - 0.5;
+
+      float deviationDirection = 0.0;
+      if (airTemperatureDeviation>=0) deviationDirection = -1.0;
+      if (airTemperatureDeviation<0) deviationDirection = 1.0;
+      
+      if( abs(airTemperatureDeviation) > 0.2){
+        // Reduce the glass setpoint
+        glassSetpoint = glassSetpoint + (deviationDirection * 1.0);
+      }
+      else if( abs(airTemperatureDeviation) > 0.15){
+        // Reduce the glass setpoint
+        glassSetpoint = glassSetpoint + (deviationDirection * 0.5);
+      }
+      else if( abs(airTemperatureDeviation) > 0.0){
+        // Reduce the glass setpoint
+        glassSetpoint = glassSetpoint + (deviationDirection * 0.25);
+      }  
 
       // Update the last glass setpoint update time to the current time
       lastGlassSetpointUpdate = currentTimeMilliseconds;
@@ -864,27 +890,20 @@ void CheckGlassSetpoint()
       // Send a message to the serial
       msgBuffer += "Glass Setpoint updated to ";
       msgBuffer += String(glassSetpoint);
-    }
-
-    // If the glass temperature has been stable and the air temperature is significantly lower than the air temperature setpoint, update the glass setpoint
-    if (abs(glassTemperatureSlope) <= 0.2 && gapFromAirTemperatureSetpoint < -0.5)
-    {
-      // Increase the glass setpoint
-      glassSetpoint = glassSetpoint + 0.5;
-
-      // Update the last glass setpoint update time to the current time
+    } else {
+      msgBuffer += "CheckGlassSetpoint - No need to adjust";
       lastGlassSetpointUpdate = currentTimeMilliseconds;
-
-      // Send a message to the serial
-      msgBuffer += "Glass Setpoint updated to ";
-      msgBuffer += String(glassSetpoint);
     }
   }
 }
 
 void RemoveErroneousGlassTemperatureReadings()
 {
+
+  //DOP to Izzy: this  initial approach was resulting in numbers getting stuck on a single value, which I was worried about
+  
   // Calculate difference between current glass temperature and previous glass temperature reading
+/*
   double glassTemperatureDataDifference = abs(glassTemperature - previousGlassTemperature);
 
   // If the difference is significant and a previousGlassTemperature value exists, reassign the reading a new value
@@ -893,4 +912,25 @@ void RemoveErroneousGlassTemperatureReadings()
     // Reassign this inaccurate data point to the value of the previous reading
     glassTemperature = previousGlassTemperature;
   }
+*/
+/*
+  Testing a modified approach where we:
+  1. require the history to be fill 
+  2. was test against the preceding two values and only skip if glassTemperatureHistory[index-1] and glassTemperatureHistory[index-2]
+  3. do not use historical value if glassTemperatureHistory[index-1] == glassTemperatureHistory[index-2] to avoid sticky numbers
+  
+*/
+  //Since glassTemperatureHistory is used as a circular buffer, we need to access the values 1 and 2 indices before the current historyArraysIndex
+  //if historyArraysIndex is 0 or 1, then we need historyArraysSize and historyArraysSize-1. To do this, we used the modulo (%) function. 
+  // e.g -2%5 = 3
+  if ( (isHistoryArraysFilled == true) && (glassTemperatureHistory[(historyArraysIndex-1)%historyArraysSize] != glassTemperatureHistory[(historyArraysIndex-2)%historyArraysSize]) )
+  {
+    if ( (abs(glassTemperature - glassTemperatureHistory[(historyArraysIndex-1)%historyArraysSize])>0.25) && (abs(glassTemperature - glassTemperatureHistory[(historyArraysIndex-2)%historyArraysSize])>0.25) ) 
+    {
+      glassTemperature = glassTemperatureHistory[(historyArraysIndex-1)%historyArraysSize];
+    }
+  }
+
+
+  
 }
