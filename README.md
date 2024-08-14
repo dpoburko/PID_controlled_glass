@@ -1,11 +1,15 @@
 # Introduction
-We have aimed to create the code needed to control a resistively heated sheet of glass. This glass will be the lid of a stage-top incubator on a microscope stage. 
-The incubator needs to control:
-1) Monitor and set the temperature of the heated glass lid
-2) Monitor the air temperature in the incubator, and aim to sustain 37C by adjusting the temperature of the lid
-3) Monitor CO2 levels, measured as % 
-4) Monitor relative humidity, which will be a function of temparature. Ideally, the system would alert the user (audibly or electronically) if the RH falls below some expected level once temperature stabilizes
-5) Integrate the temperature control into the current code that controls CO2 and data logging
+We have created code to control a resistively heated sheet of glass. This glass will be the lid of a stage-top incubator on a microscope stage. 
+The incubator controls:
+1) the temperature of the heated glass lid
+2) the air temperature in the incubator, and adjusted the glass temperature to maintain the air temp setpoint
+3) CO2 levels, measured as % 
+
+The incubator also monitors:
+1) relative humidity
+2)     Ideally, the system would alert the user (audibly or electronically) if the RH falls below some expected level once temperature stabilizes
+3) air pressure
+4) time of day
     
 # Approach to heating
 ## Employ a well-validated PID library
