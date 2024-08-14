@@ -421,9 +421,6 @@ void loop()
   {
     CheckGlassSetpoint();
   }
-
-  // Set the previousAirTemperature value to the current air temperature
-  previousAirTemperature = airTemperature;
 	
   // If the output from the PID is different from the previous output, adjust the pulse-width modulator duty cycle
   if (PWMOutput!= PWMOutputLast) 
@@ -505,7 +502,14 @@ void loop()
     }
   }
 
+  // Set the previousGlassTemperature value to the current glass temperature
   previousGlassTemperature = glassTemperature;
+
+  // Set the previousAirTemperature value to the current air temperature
+  previousAirTemperature = airTemperature;
+
+  // Set the oldestAirTemperature value to the previousAirTemperature value
+  oldestAirTemperature = previousAirTemperature;
 
   // Delay determines how often loop repeats
   delay(20); 
