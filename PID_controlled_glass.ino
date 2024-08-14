@@ -961,10 +961,13 @@ void RemoveErroneousGlassTemperatureReadings()
 void RemoveErroneousAirTemperatureReadings()
 {
   // Calculate difference between current air temperature and previous air temperature reading
-  double airTemperatureDataDifference = abs(airTemperature - previousAirTemperature);
+  double previousAirTemperatureDataDifference = abs(airTemperature - previousAirTemperature);
 
-  // If the difference is significant and a previousAirTemperature value exists, reassign the reading a new value
-  if (airTemperatureDataDifference > 0.25 && previousAirTemperature != 0)
+  // Calculate difference between current air temperature and oldest air temperature reading
+  double oldestAirTemperatureDataDifference = abs(airTemperature - oldestAirTemperatureDataDifference);
+
+  // If the differences are significant and a previousAirTemperature and oldestAirTemperature value exists, reassign the reading a new value
+  if (previousAirTemperatureDataDifference > 0.25 && oldestAirTemperatureDataDifference > 0.25 && previousAirTemperature != 0 && oldestAirTemperature != 0)
   {
     // Reassign this inaccurate data point to the value of the previous reading
     airTemperature = previousAirTemperature;
