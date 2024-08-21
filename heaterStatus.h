@@ -11,18 +11,24 @@ class heaterStatus {
 heaterStatus
 
   public:
-  //constants used in functions
+  //these public variables should be accessible to the sketch as 
   int errorCode;
+  int errorCodePrevious;
 
   private:
-    int *thisErrorCode; //probably not needed
-    int *thisErrorCodePrevious; //probably not needed
-    int newErrorCode;
-    const numberOfErrorCodes = 5;
-    bool errorCodesActive[numberOfErrorCodes];
-    double timesErrorsAcknowledged[numberOfErrorCodes];
-    bool areErrorsAcknowledged[numberOfErrorCodes];
-    double errorGraceTime;
+    int _newErrorCode;
+    const _numberOfErrorCodes = 5;
+    bool _errorCodesActive[numberOfErrorCodes];
+    double _timesErrorsAcknowledged[numberOfErrorCodes];
+    bool _errorsAcknowledged[numberOfErrorCodes];
+    double _errorGraceTime;
+    //Pointers that will draw a value from referenced variables in the sketch
+    double *_glassTemp;
+    double *_maxGlassTemp;
+    double *_glassSetPt
+    char *_errorMessage;
+    double *_heaterOutput;
+    double *_lastHeaterOutput;
 
 }; //close heaterStatus class
 #endif
