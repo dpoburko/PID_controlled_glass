@@ -759,7 +759,7 @@ void ErrorCheck(int &thisError)
     // Slope (over 50 samples) when ramping up can be >11 C/min 
     // When stable, always within +/-0.7C/min
     // When off, falling from 35C in ambient temp, goes to ~ -1C/min
-
+//%%% Issue to address. How to avoid this error being thrown if system shuts off, slope<-1, then power comes on and slope transits through 0. 
     // If temp not reaching desired setpoint and slope is relatively flat, assume power is insufficient to reach setpoint
     if (glassTemperatureGapFromSetpoint < -0.5 && glassTemperatureSlope < 0.5 && glassTemperatureSlope > -1) 
     {
@@ -772,6 +772,7 @@ void ErrorCheck(int &thisError)
     }
 
     // Heater failure: temperature falling unexpectedly. Assume power not getting to the heating elements
+//%%% - need an exception for case where system shuts off, slope<-1, then system restarts an needs to turn on.
     else if (glassTemperatureGapFromSetpoint < -0.5 && glassTemperatureSlope <= -1) 
     {
       if (!isErrorBuffered)
