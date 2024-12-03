@@ -53,7 +53,7 @@ heaterStatus::heaterStatus(double* glassTemp, double* maxGlasTemp, double* glass
 
   // the _ denotes a private variable
   _glassTemp = glassTemp; 
-  _maxGlassTemp = glassTemp;
+  _maxGlassTemp = maxGlassTemp;
   _glassSetPt = glassSetPt;
   _errorMessage = errorMessage;
   _heaterOutput = heaterOutput;
