@@ -153,8 +153,14 @@ double glassTemperatureSlope = 0.0;
 // Variable to store air temperature
 double airTemperature = 20.0;
 
+// Variable to store air temperature difference from setpoint
+double airTemperatureDeviation = 0.0;
+
 // Variable to store previous air temperature
 double previousAirTemperature = 0.0;
+
+// Variable to store oldest air temperature
+double oldestAirTemperature = 0.0;
 
 // Air temperature goal
 double airTemperatureSetpoint = 37.0;
@@ -164,6 +170,9 @@ double airTemperatureTolerance = 0.1;
 
 // Boolean to check if the air temperature setpoint has been reached
 bool isAirTemperatureSetpointReached = false;
+
+// Boolean to check if the air temperature setpoint has been noted
+bool isAirTemperatureSetpointNoted = false;
 
 // yes if Air temperature < airTemperatureSetpoint and reassessed at start-up and changes of airTemperatureSetpoint
 bool isAirTemperatureClimbing = true;
@@ -217,6 +226,9 @@ int serialDisplayInterval = 2000;
 // Variable to store when the information was last displayed on the serial
 int lastSerialDisplay = 0;
 
+// not if output headers have been printed
+bool headersPrinted = false;
+
 // *************************************************************************************************************************************
 // OTHER VARIABLES
 // *************************************************************************************************************************************
@@ -253,7 +265,7 @@ void setup()
   // Open serial port, set data rate to 57600 bps
   Serial.begin(57600);	
   // Delay helps fix serial glitch
-  delay(1000);
+  delay(2000);
 
   // Initialize communication with I2C devices
   Wire.begin();
@@ -299,6 +311,8 @@ void setup()
 
 void loop() 
 {
+
+
   // Call STEINHART library, check if value is updated  
   isNewGlassTemperature = thermistor1.read();
   
@@ -455,7 +469,7 @@ void loop()
     if (lengthOfSerialMessage <= serialMaxMessageLength) 
     {
       // If user inputted P, T, or E, go to parse function to read the next message inputted
-      if (incomingSerial[0] == 'P' || incomingSerial[0] == 'T'|| incomingSerial[0] == 'E') 
+      if (incomingSerial[0] == 'P' || incomingSerial[0] == 'T'|| incomingSerial[0] == 'E' || incomingSerial[0] == 'L') 
       {
         // Go to parse function to read the next message inputted
         ParsePIDCmd();
@@ -483,6 +497,7 @@ void loop()
         Serial.println("   Pmm - call  heaterPID.SetMode(manualPIDMode)");
         Serial.println("   Pmg - call  heaterPID.GetMode()");
         Serial.println("   Psnnn - update glassSetpoint as nn.n degrees");
+        Serial.println("   Pannn - update airTemperatureSetpoint as nn.n degrees");
         Serial.println("   Ponnn. - manually set PWMOutput (only usual in manualPIDMode mode");
         Serial.println("   Plnnn. - call heaterPID.SetOutputLimits(0, nnn)");
         Serial.println("   Phnnn. - updated holding PWM");
@@ -490,6 +505,7 @@ void loop()
         Serial.println("   Ptinnn. - heaterPID.SetTunings(ppp,nnn,ddd)");
         Serial.println("   Ptdnnn. - heaterPID.SetTunings(ppp,iii,nnn)");
         Serial.println("   Pdnnnn. - call heaterPID.SetSampleTime(nnnn) & STEINHART::setSampleTime(nnnn)");
+        Serial.println("   lh - print column headers");
         Serial.println("   Tp - print temperature history");
         Serial.println("   Ep - print mse history");
         Serial.println("   >>>>>>>>>>>>>><<<<<<<<<<<<<<<<");
@@ -569,6 +585,13 @@ void ParsePIDCmd()
       glassSetpoint = atof(newSetpoint)/10.0;
       msgBuffer += " glassSetpoint now ";
 			msgBuffer += String(glassSetpoint,1); 
+    }
+    else if (incomingSerial[1] == 'a') 
+    {
+      char newSetpoint[3] = {incomingSerial[2],incomingSerial[3],incomingSerial[4]};
+      airTemperatureSetpoint = atof(newSetpoint)/10.0;
+      msgBuffer += " airTemperatureSetpoint now ";
+      msgBuffer += String(airTemperatureSetpoint,1); 
     }
     else if (incomingSerial[1] == 'a') 
     {
@@ -653,6 +676,10 @@ void ParsePIDCmd()
     }
     Serial.println(" ");
   } 
+  else if(incomingSerial[0] == 'L')
+  {
+    Serial.println("T(enclosure):\tT(glass):\tT(slope):\tT(mse):\tsetPt(glass):\tsetPt(enclosure):\tPWMOut:\tV(in):\tPID:\tError:\tMsg:"); 
+  }
   else if(incomingSerial[0] == 'E' && incomingSerial[1] == 'p' )
   {
     for(int i = 0; i < historyArraysSize; i++) 
@@ -662,6 +689,7 @@ void ParsePIDCmd()
     }
     Serial.println(" ");
   } 
+ 
   else 
   {
     Serial.println(" Command not recognized. Press 'h' for index of commands");
@@ -901,6 +929,8 @@ void CheckGlassSetpoint()
   // Current time in milliseconds since the program has been running
   int currentTimeMilliseconds = millis();
 
+  airTemperatureDeviation = airTemperature - airTemperatureSetpoint;
+
   // If it has been long enough since the last glass setpoint update and the history array has enough data, check if the glass setpoint needs to be updated
   if ((currentTimeMilliseconds - lastGlassSetpointUpdate) >= glassSetpointInterval && isHistoryArraysFilled == true)
   {
@@ -913,7 +943,11 @@ void CheckGlassSetpoint()
       if (airTemperatureDeviation>=0) deviationDirection = -1.0;
       if (airTemperatureDeviation<0) deviationDirection = 1.0;
       
-      if( abs(airTemperatureDeviation) > 0.2){
+      if( abs(airTemperatureDeviation) > 0.4){
+        // Reduce the glass setpoint
+        glassSetpoint = glassSetpoint + (deviationDirection * 2.0);
+      }
+      else if( abs(airTemperatureDeviation) > 0.2){
         // Reduce the glass setpoint
         glassSetpoint = glassSetpoint + (deviationDirection * 1.5);
       }
@@ -953,22 +987,35 @@ void RemoveErroneousGlassTemperatureReadings()
   // e.g -2%5 = 3
   if ( (isHistoryArraysFilled == true) && (glassTemperatureHistory[(historyArraysIndex-1)%historyArraysSize] != glassTemperatureHistory[(historyArraysIndex-2)%historyArraysSize]) )
   {
-    if ( (abs(glassTemperature - glassTemperatureHistory[(historyArraysIndex-1)%historyArraysSize])>0.25) && (abs(glassTemperature - glassTemperatureHistory[(historyArraysIndex-2)%historyArraysSize])>0.25) ) 
+    if ( (abs(glassTemperature - glassTemperatureHistory[(historyArraysIndex-1)%historyArraysSize])>0.4) && (abs(glassTemperature - glassTemperatureHistory[(historyArraysIndex-2)%historyArraysSize])>0.4) ) 
     {
       glassTemperature = glassTemperatureHistory[(historyArraysIndex-1)%historyArraysSize];
+      // Send a message to the serial
+      msgBuffer += "Erroneous glass temperature data point reassigned";
     }
-    // Send a message to the serial
-    msgBuffer += "Erroneous glass temperature data point reassigned";
   }
 }
 
 void RemoveErroneousAirTemperatureReadings()
 {
+  
+    if ( (isHistoryArraysFilled == true) && (airTemperatureHistory[(historyArraysIndex-1)%historyArraysSize] != airTemperatureHistory[(historyArraysIndex-2)%historyArraysSize]) )
+  {
+    if ( (abs(airTemperature - airTemperatureHistory[(historyArraysIndex-1)%historyArraysSize])>0.4) && (abs(airTemperature - airTemperatureHistory[(historyArraysIndex-2)%historyArraysSize])>0.4) ) 
+    {
+      airTemperature = airTemperatureHistory[(historyArraysIndex-1)%historyArraysSize];
+      // Send a message to the serial
+      msgBuffer += "Erroneous enclosure temperature data point reassigned";
+    }
+  }
+  
+  
+  /*
   // Calculate difference between current air temperature and previous air temperature reading
   double previousAirTemperatureDataDifference = abs(airTemperature - previousAirTemperature);
 
   // Calculate difference between current air temperature and oldest air temperature reading
-  double oldestAirTemperatureDataDifference = abs(airTemperature - oldestAirTemperatureDataDifference);
+  double oldestAirTemperatureDataDifference = abs(airTemperature - oldestAirTemperature);
 
   // If the differences are significant and a previousAirTemperature and oldestAirTemperature value exists, reassign the reading a new value
   if (previousAirTemperatureDataDifference > 0.25 && oldestAirTemperatureDataDifference > 0.25 && previousAirTemperature != 0 && oldestAirTemperature != 0)
@@ -979,4 +1026,6 @@ void RemoveErroneousAirTemperatureReadings()
     // Send a message to the serial
     msgBuffer += "Erroneous air temperature data point reassigned";
   }
+  */
+  
 }
