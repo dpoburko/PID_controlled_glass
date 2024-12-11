@@ -36,7 +36,7 @@
 // *************************************************************************************************************************************
 
 // Set glass temperature goal (in degrees Celsius)
-double glassSetpoint = 45.0;
+double glassSetpoint = 55.0;
 
 // PID proportional, integral, and derivative constants (these values (2, 96, 21) are working well for the 5 mm thick glass)
 double PIDKp = 2, PIDKi = 96, PIDKd = 21;
