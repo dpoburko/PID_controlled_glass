@@ -86,6 +86,7 @@ double maximumConservativePIDOutput = 40.0;
 // Set current maximum output to pulse-width modulator to the conservative limit initially
 double currentMaximumPIDOutput = maximumConservativePIDOutput;
 
+//%%% to ErrorCheck library
 // Error variables
 int errorCode = 0; // Izzy's edit: errorCode was initially a long but I changed it to an int since ErrorCheck() requires a parameter of type int
 int errorCodePrevious = 0; // keep track of previous error code
@@ -133,6 +134,7 @@ double PWMOutput = 0.0;
 // Last pulse-width modulator output value
 double PWMOutputLast = 0.0;
 
+//%%% to ErrorCheck library?
 // Value used to hold glass temperature warm but safe
 double PWMOutputIfError = 10.0;
 
@@ -427,6 +429,9 @@ void loop()
     } 
   }
 
+   //%%% @Izzy, I have just noticed that we have no errorChecking when in manual mode. This seems prone to troubles. Let's rethink this.
+	
+	
   // Check if the air temperature is sufficiently heated
   if (isAirTemperatureClimbing == true)
   {
@@ -480,6 +485,7 @@ void loop()
     lastSerialDisplay = currentTimeMilliseconds;
   }
 
+  //%%% If ErrorCheck library goes smoothly, consider moving SerialParsing to library with pointers to all variables control/manipulated.
   // If the user has typed a message to the serial monitor, read the message
   if (Serial.available() > 0) 
   {
@@ -760,6 +766,7 @@ void GetBuckConverterVoltage(double &newVoltage)
   newVoltage = thisVoltage; 
 }
 
+//%%% to ErrorCheck library 
 void ErrorCheck(int &thisError)
 {
   double glassTemperatureGapFromSetpoint = glassTemperature - glassSetpoint; // This was initially deltaFromSetPt and was never declared or set so I did that here
@@ -817,7 +824,7 @@ void ErrorCheck(int &thisError)
     // Slope (over 50 samples) when ramping up can be >11 C/min 
     // When stable, always within +/-0.7C/min
     // When off, falling from 35C in ambient temp, goes to ~ -1C/min
-
+//%%% Issue to address. How to avoid this error being thrown if system shuts off, slope<-1, then power comes on and slope transits through 0. 
     // If temp not reaching desired setpoint and slope is relatively flat, assume power is insufficient to reach setpoint
     if (glassTemperatureGapFromSetpoint < -1.0 && glassTemperatureSlope < 0.5 && glassTemperatureSlope > -1) 
     {
@@ -830,7 +837,6 @@ void ErrorCheck(int &thisError)
     }
 
     // Heater failure: temperature falling unexpectedly. Assume power not getting to the heating elements
-    
     else if (glassTemperatureGapFromSetpoint < -0.5 && glassTemperatureSlope <= -1 && (millis() - lastGlassSetpointUpdate) >= glassSetpointInterval/2) 
   //%%%need some additional metric to indicate that glass temp is not simply descreasing to a new set point, then some delay to account for stabilization
     {
@@ -874,13 +880,7 @@ void AppendToHistory(double gValue, double aValue)
     endHistoryArraysIndex = 0;
   }
 }
-/*
-void AppendToAirHistory(double value)
-{
-  //indexing is goverend by AppendToGlassHistory()
-  airTemperatureHistory[historyArraysIndex] = value;
-}
-*/
+
 void GetArrayAverage(double thisArray[], double &average)
 {
   double arrAvg = 0.0;
@@ -916,50 +916,37 @@ void PrintParametersToSerial()
   }
 
   logBuffer = "";
-  //logBuffer += "\tT(enclosure):";
   logBuffer += "\t";
   logBuffer += String(airTemperature, 2);
-  //logBuffer += "\tT(glass):";
   logBuffer += "\t";
   logBuffer += String(glassTemperature, 2);
-  //logBuffer += "\tT(slope):";
   logBuffer += "\t";
   logBuffer += String(glassTemperatureSlope, 2);
-  //logBuffer += "\tT(mse):";
   logBuffer += "\t";
   logBuffer += String(mseGlassTemperature, 3);
-  //logBuffer += "\tsetPt(glass):";
   logBuffer += "\t";
   logBuffer += String(glassSetpoint, 2);
-  //logBuffer += "\tsetPt(air):";
   logBuffer += "\t";
   logBuffer += String(airTemperatureSetpoint, 1);
-  //logBuffer += "\tPWMOut:";
   logBuffer += "\t";
   logBuffer += String(PWMOutput);
-  //logBuffer += "\tV(in):";
   logBuffer += "\t";
   logBuffer += String(buckConverterVoltage, 2);
-  //logBuffer += "\tPID:";
   logBuffer += "\t";
   logBuffer += String(PIDKp);
   logBuffer += "/";
   logBuffer += String(PIDKi);
   logBuffer += "/";
   logBuffer += String(PIDKd);
-  //logBuffer += "\tPIDmode:";
-  //logBuffer += String(PIDMode);
-  //logBuffer += "\tError:";
   logBuffer += "\t";
   logBuffer += errorBuffer;
-	//logBuffer += "\tMsg:";
   logBuffer += "\t";
-	logBuffer += msgBuffer;
+  logBuffer += msgBuffer;
   logBuffer += "\n";
-	Serial.print(logBuffer);
-	logBuffer = "";
-	msgBuffer = " ";
-	errorBuffer = " ";
+  Serial.print(logBuffer);
+  logBuffer = "";
+  msgBuffer = " ";
+  errorBuffer = " ";
   isErrorBuffered = false;
 
   nLogged++;
@@ -1037,15 +1024,7 @@ void RemoveErroneousGlassTemperatureReadings()
   // Calculate difference between current glass temperature and previous glass temperature reading
   double glassTemperatureDataDifference = abs(glassTemperature - previousGlassTemperature);
 
-/*
-  Testing a modified approach where we:
-  1. require the history to be fill 
-  2. was test against the preceding two values and only skip if glassTemperatureHistory[index-1] and glassTemperatureHistory[index-2]
-  3. do not use historical value if glassTemperatureHistory[index-1] == glassTemperatureHistory[index-2] to avoid sticky numbers
-*/
-  //Since glassTemperatureHistory is used as a circular buffer, we need to access the values 1 and 2 indices before the current historyArraysIndex
-  //if historyArraysIndex is 0 or 1, then we need historyArraysSize and historyArraysSize-1. To do this, we used the modulo (%) function. 
-  // e.g -2%5 = 3
+  //Since glassTemperatureHistory is a circular buffer, we access the values 1 and 2 indices before the current historyArraysIndex
   if ( (isHistoryArraysFilled == true) && (glassTemperatureHistory[(historyArraysIndex-1)%historyArraysSize] != glassTemperatureHistory[(historyArraysIndex-2)%historyArraysSize]) )
   {
     if ( (abs(glassTemperature - glassTemperatureHistory[(historyArraysIndex-1)%historyArraysSize])>0.4) && (abs(glassTemperature - glassTemperatureHistory[(historyArraysIndex-2)%historyArraysSize])>0.4) ) 
