@@ -36,7 +36,7 @@
 // *************************************************************************************************************************************
 
 // Set glass temperature goal (in degrees Celsius)
-double glassSetpoint = 45.0;
+double glassSetpoint = 55.0;
 
 // PID proportional, integral, and derivative constants (these values (2, 96, 21) are working well for the 5 mm thick glass)
 double PIDKp = 2, PIDKi = 96, PIDKd = 21;
@@ -67,6 +67,11 @@ int lastGlassSetpointUpdate = 0;
 
 // Set maximum glass temperature allowed (in degrees Celsius)
 const int maxGlassTemperature = 65;
+
+// Set current automated change in glass set point and maximum absolute increase in glass set point that the algorithm can set by itself
+int maxGlassAutoIncrease = 5;
+double autoGlassSetpointChange = 0;
+
 
 // Distance from the setpoint where PID should start computing
 const double gapFromSetpointWherePIDStarts = 1.5;
@@ -149,8 +154,11 @@ double glassTemperature = 0.0;
 // Variable to store previous glass temperature (in degrees Celsius)
 double previousGlassTemperature = 0.0;
 
-// Variable to store the slope of the glass temperature change
+// Variable to store the slopes of the glass and air temperature change
+int slopeInterval = 10;
 double glassTemperatureSlope = 0.0;
+double airTemperatureSlope = 0.0;
+
 
 // Variable to store air temperature
 double airTemperature = 20.0;
@@ -205,6 +213,10 @@ double mseGlassTemperature = 0.0;
 
 // Boolean to check whether or not there is a new glass temperature
 bool isNewGlassTemperature = false;
+
+// Boolean to check whether or not there is a new air temperature
+bool isNewsAirTemperature = false;
+
 
 // *************************************************************************************************************************************
 // SERIAL VARIABLES
@@ -264,8 +276,11 @@ PID heaterPID(&glassTemperature, &PIDOutput, &glassSetpoint, PIDKp, PIDKi, PIDKd
 
 void setup()
 {
+  
+  while(!Serial){}  
   // Open serial port, set data rate to 57600 bps
   Serial.begin(57600);	
+  
   // Delay helps fix serial glitch
   delay(2000);
 
@@ -296,7 +311,9 @@ void setup()
 
   // Repeat for thermistor 2
   thermistor2.setSampleTime(glassVoltageReadingInterval);
-  thermistor2.read();
+  isNewsAirTemperature = thermistor2.read();
+  oldestAirTemperature = airTemperature;
+  previousAirTemperature = airTemperature;
 
   // Print initialization message and temperature to serial
   Serial.print("   ===== PID controlled glass heater =====================");
@@ -321,7 +338,7 @@ void loop()
   // Add the new temp reading to the history array if a new value is available
   if (isNewGlassTemperature) 
   {
-    // Read temperature from thermistor 2
+    // Read temperature from thermistor 2 - air temperature
     thermistor2.read();
 
     // Get the voltage from the tunable buck converter (what do we do with this?)
@@ -334,10 +351,9 @@ void loop()
     RemoveErroneousAirTemperatureReadings();
     
     // Log the glass temperature in an array
-    AppendToGlassHistory(glassTemperature);
+    AppendToHistory(glassTemperature,airTemperature );
 
-    //%%% - Can be removed. No longer needed with Izzy's method of erroneous reading check
-    AppendToAirHistory(airTemperature);
+    //AppendToAirHistory(airTemperature);
     
     // If the arrays are not yet full, calculate the slope of the glass temperature change
     if (isHistoryArraysFilled == false) 
@@ -346,17 +362,21 @@ void loop()
       if (historyArraysIndex == 0) 
       {
         glassTemperatureSlope = 0.0;
+        airTemperatureSlope = 0.0;
       } 
       else 
       {
         // In degrees/minute
-        glassTemperatureSlope = (glassTemperature - glassTemperatureHistory[0]) / ((long)(historyArraysIndex+1) * (long)glassVoltageReadingInterval/60000);
+        //glassTemperatureSlope = (glassTemperature - glassTemperatureHistory[0]) / ((long)(historyArraysIndex+1) * (long)glassVoltageReadingInterval/60000);
+          glassTemperatureSlope = (glassTemperature - glassTemperatureHistory[(historyArraysIndex-slopeInterval)%historyArraysSize]) / ((long)(historyArraysIndex+1) * (long)glassVoltageReadingInterval/60000);
+          airTemperatureSlope = (airTemperature - airTemperatureHistory[(historyArraysIndex-slopeInterval)%historyArraysSize]) / ((long)(historyArraysIndex+1) * (long)glassVoltageReadingInterval/60000);
       }
     }
     else 
       {
         // In degrees/minute
         glassTemperatureSlope = (glassTemperature - glassTemperatureHistory[endHistoryArraysIndex]) / (historyArraysSize * glassVoltageReadingInterval/60000);
+        airTemperatureSlope = (airTemperature - airTemperatureHistory[endHistoryArraysIndex]) / (historyArraysSize * glassVoltageReadingInterval/60000);
       }
     
     // Compute the average of the arrays
@@ -476,7 +496,7 @@ void loop()
     if (lengthOfSerialMessage <= serialMaxMessageLength) 
     {
       // If user inputted P, T, or E, go to parse function to read the next message inputted
-      if (incomingSerial[0] == 'P' || incomingSerial[0] == 'T'|| incomingSerial[0] == 'E' || incomingSerial[0] == 'L') 
+      if (incomingSerial[0] == 'P' || incomingSerial[0] == 'T'|| incomingSerial[0] == 'S'|| incomingSerial[0] == 'E' || incomingSerial[0] == 'L') 
       {
         // Go to parse function to read the next message inputted
         ParsePIDCmd();
@@ -512,9 +532,11 @@ void loop()
         Serial.println("   Ptinnn. - heaterPID.SetTunings(ppp,nnn,ddd)");
         Serial.println("   Ptdnnn. - heaterPID.SetTunings(ppp,iii,nnn)");
         Serial.println("   Pdnnnn. - call heaterPID.SetSampleTime(nnnn) & STEINHART::setSampleTime(nnnn)");
-        Serial.println("   lh - print column headers");
-        Serial.println("   Tp - print temperature history");
-        Serial.println("   Ep - print mse history");
+        Serial.println("   L - print column headers");
+        Serial.println("   St - print temperature history");
+        Serial.println("   Se - print mse history");
+        Serial.println("   Sa - print air temp history");
+        
         Serial.println("   >>>>>>>>>>>>>><<<<<<<<<<<<<<<<");
       }
       // If another message is inputted, print to the serial that the message was not recognized
@@ -525,6 +547,7 @@ void loop()
     }
   }
 
+//since glass and air temp are logged in history indices, we could just skip this and pull the values from arrays when needed
   // Set the previousGlassTemperature value to the current glass temperature
   previousGlassTemperature = glassTemperature;
 
@@ -599,27 +622,28 @@ void ParsePIDCmd()
       airTemperatureSetpoint = atof(newSetpoint)/10.0;
       msgBuffer += " airTemperatureSetpoint now ";
       msgBuffer += String(airTemperatureSetpoint,1); 
+
+      if (airTemperature < airTemperatureSetpoint) {
+        isAirTemperatureClimbing  = true;
+        msgBuffer += " isAirTemperatureClimbing  = true";
+      } else {
+        isAirTemperatureClimbing  = false;
+        msgBuffer += " isAirTemperatureClimbing  = false";
+      }
+    
+      isAirTemperatureSetpointNoted = false;
+
     }
+    /*
     else if (incomingSerial[1] == 'a') 
     {
       char newSetpoint[3] = {incomingSerial[2],incomingSerial[3],incomingSerial[4]};
       
       double newAirTemperatureSetpoint = atof(newSetpoint)/10.0;
 
-      airTemperatureSetpoint = newAirTemperatureSetpoint;
-
-      if (airTemperature < airTemperatureSetpoint) {
-        isAirTemperatureClimbing  = true;
-      } else {
-        isAirTemperatureClimbing  = false;
-      }
-      //glassSetpoint = glassSetpoint; 
-      msgBuffer += " airTemperatureSetpoint now ";
-      msgBuffer += String(airTemperatureSetpoint,1); 
-      //isAirTemperatureSetpointReached = false;
-      isAirTemperatureSetpointNoted = false;
       
     }
+    */
     else if (incomingSerial[1] == 'l') 
     {
       char upper[3] = {incomingSerial[2],incomingSerial[3],incomingSerial[4]};
@@ -674,29 +698,42 @@ void ParsePIDCmd()
       heaterPID.SetTunings(PIDKp,PIDKi,PIDKd);
     }
   } 
-  else if(incomingSerial[0] == 'T' && incomingSerial[1] == 'p' )
+  else if(incomingSerial[0] == 'S' && incomingSerial[1] == 't' )
   {
     for(int i = 0; i < historyArraysSize; i++) 
     {
       Serial.print(glassTemperatureHistory[i]);
       Serial.print(", "); 
     }
-    Serial.println(" ");
+    Serial.print(", index = ");
+    Serial.println(historyArraysIndex);
   } 
-  else if(incomingSerial[0] == 'L')
-  {
-    Serial.println("T(enclosure):\tT(glass):\tT(slope):\tT(mse):\tsetPt(glass):\tsetPt(enclosure):\tPWMOut:\tV(in):\tPID:\tError:\tMsg:"); 
-  }
-  else if(incomingSerial[0] == 'E' && incomingSerial[1] == 'p' )
+
+  else if(incomingSerial[0] == 'S' && incomingSerial[1] == 'e' )
   {
     for(int i = 0; i < historyArraysSize; i++) 
     {
       Serial.print(mseGlassTemperatureHistory[i]);
       Serial.print(", "); 
     }
-    Serial.println(" ");
+    Serial.print(", index = ");
+    Serial.println(historyArraysIndex);
   } 
- 
+  else if(incomingSerial[0] == 'S' && incomingSerial[1] == 'a' )
+  {
+    for(int i = 0; i < historyArraysSize; i++) 
+    {
+      Serial.print(airTemperatureHistory[i]);
+      Serial.print(", "); 
+    }
+    Serial.print(", index = ");
+    Serial.println(historyArraysIndex);
+  } 
+
+  else if(incomingSerial[0] == 'L')
+  {
+    Serial.println("T(enclosure):\tT(glass):\tT(slope):\tT(mse):\tsetPt(glass):\tsetPt(enclosure):\tPWMOut:\tV(in):\tPID:\tError:\tMsg:"); 
+  } 
   else 
   {
     Serial.println(" Command not recognized. Press 'h' for index of commands");
@@ -789,26 +826,26 @@ void ErrorCheck(int &thisError)
     // When off, falling from 35C in ambient temp, goes to ~ -1C/min
 //%%% Issue to address. How to avoid this error being thrown if system shuts off, slope<-1, then power comes on and slope transits through 0. 
     // If temp not reaching desired setpoint and slope is relatively flat, assume power is insufficient to reach setpoint
-    if (glassTemperatureGapFromSetpoint < -0.5 && glassTemperatureSlope < 0.5 && glassTemperatureSlope > -1) 
+    if (glassTemperatureGapFromSetpoint < -1.0 && glassTemperatureSlope < 0.5 && glassTemperatureSlope > -1) 
     {
       if (!isErrorBuffered)
       {
         newError = 4;
         errorBuffer += newError;
-  	errorBuffer += " Under-powered. Increase max output.";
+  	    errorBuffer += " Under-powered. Increase max output.";
       }
     }
 
     // Heater failure: temperature falling unexpectedly. Assume power not getting to the heating elements
-//%%% - need an exception for case where system shuts off, slope<-1, then system restarts an needs to turn on.
-    else if (glassTemperatureGapFromSetpoint < -0.5 && glassTemperatureSlope <= -1) 
+    else if (glassTemperatureGapFromSetpoint < -0.5 && glassTemperatureSlope <= -1 && (millis() - lastGlassSetpointUpdate) >= glassSetpointInterval/2) 
+  //%%%need some additional metric to indicate that glass temp is not simply descreasing to a new set point, then some delay to account for stabilization
     {
       if (!isErrorBuffered)
       {
         newError = 5;
         PWMOutput = 0;
-  	errorBuffer += newError;
-  	errorBuffer += " Heater failure. Output - off.";
+  	    errorBuffer += newError;
+  	    errorBuffer += " Heater failure. Output - off.";
       }
     }
     else 
@@ -824,10 +861,11 @@ void ErrorCheck(int &thisError)
   thisError = newError;
 }
 
-void AppendToGlassHistory(double value)
+void AppendToHistory(double gValue, double aValue)
 {
-  glassTemperatureHistory[historyArraysIndex] = value;
-  mseGlassTemperatureHistory[historyArraysIndex] = sqrt(sq(value-glassSetpoint));
+  glassTemperatureHistory[historyArraysIndex] = gValue;
+  airTemperatureHistory[historyArraysIndex] = aValue;
+  mseGlassTemperatureHistory[historyArraysIndex] = sqrt(sq(gValue-glassSetpoint));
   historyArraysIndex++;
   
   if (historyArraysIndex >= historyArraysSize) 
@@ -841,13 +879,6 @@ void AppendToGlassHistory(double value)
   {
     endHistoryArraysIndex = 0;
   }
-}
-
-//%%% Deprecated? 
-void AppendToAirHistory(double value)
-{
-  //indexing is goverend by AppendToGlassHistory()
-  airTemperatureHistory[historyArraysIndex] = value;
 }
 
 void GetArrayAverage(double thisArray[], double &average)
@@ -879,7 +910,7 @@ void PrintParametersToSerial()
 
   if (nLogged == 0) {
     Serial.println(" ");
-    logBuffer += "T(enclosure):\tT(glass):\tT(slope):\tT(mse):\tsetPt(glass):\tsetPt(air):\tPWMOut:\tV(in):\tPID:\tError:\tMsg:";
+    logBuffer += "T(enclosure):\tT(glass):\tT(slope):\tT(mse):\tsetPt(glass):\tsetPt(enclosure):\tPWMOut:\tV(in):\tPID:\tError:\tMsg:";
     Serial.println(logBuffer);
     logBuffer = "";
   }
@@ -927,6 +958,7 @@ void CheckGlassSetpoint()
   int currentTimeMilliseconds = millis();
 
   airTemperatureDeviation = airTemperature - airTemperatureSetpoint;
+  double glassTempDelta = 0;
 
   // If it has been long enough since the last glass setpoint update and the history array has enough data, check if the glass setpoint needs to be updated
   if ((currentTimeMilliseconds - lastGlassSetpointUpdate) >= glassSetpointInterval && isHistoryArraysFilled == true)
@@ -936,26 +968,45 @@ void CheckGlassSetpoint()
     // If the glass temperature has been stable and the air temperature is significantly higher than the air temperature setpoint, update the glass setpoint
     {
 
+      //If air temp is too high, reduce glass temp, if too low, increase glass temp. This toggles direction of change.
       float deviationDirection = 0.0;
       if (airTemperatureDeviation>=0) deviationDirection = -1.0;
       if (airTemperatureDeviation<0) deviationDirection = 1.0;
+
+      // Very basic proportional control of glass temperature relative to air temp
       
       if( abs(airTemperatureDeviation) > 0.4){
         // Reduce the glass setpoint
-        glassSetpoint = glassSetpoint + (deviationDirection * 2.0);
+        glassTempDelta = deviationDirection * 2.0;
       }
       else if( abs(airTemperatureDeviation) > 0.2){
         // Reduce the glass setpoint
-        glassSetpoint = glassSetpoint + (deviationDirection * 1.5);
+        glassTempDelta = deviationDirection * 1.5;
       }
       else if( abs(airTemperatureDeviation) > 0.15){
         // Reduce the glass setpoint
-        glassSetpoint = glassSetpoint + (deviationDirection * 0.75);
+        glassTempDelta = deviationDirection * 0.75;
       }
-      else if( abs(airTemperatureDeviation) > 0.0){
+      else if( abs(airTemperatureDeviation) > 0.10){
         // Reduce the glass setpoint
-        glassSetpoint = glassSetpoint + (deviationDirection * 0.25);
+        glassTempDelta = deviationDirection * 0.25;
       }  
+      else {
+        // Reduce the glass setpoint
+        glassTempDelta = 0.0;
+      }  
+
+      //increment the deviation of glassSetpoint from the most recent user-defined glassSetpoint
+      autoGlassSetpointChange += glassTempDelta;
+      
+      // if the delta is positive, limit the total possible increase to 5C. The user can reset this by manually increasing the set point.
+      //The should limit overshoot in the automatic increases in glass set point
+      if (glassTempDelta>0 && autoGlassSetpointChange >= maxGlassAutoIncrease) {
+        autoGlassSetpointChange = maxGlassAutoIncrease;
+        glassTempDelta = 0;
+      }
+
+      glassSetpoint += glassTempDelta;
 
       // Update the last glass setpoint update time to the current time
       lastGlassSetpointUpdate = currentTimeMilliseconds;
@@ -963,7 +1014,7 @@ void CheckGlassSetpoint()
       // Send a message to the serial
       msgBuffer += "Glass Setpoint updated to ";
       msgBuffer += String(glassSetpoint);
-      lastGlassSetpointUpdate = currentTimeMilliseconds;
+
     }
   }
 }
@@ -978,7 +1029,7 @@ void RemoveErroneousGlassTemperatureReadings()
   {
     if ( (abs(glassTemperature - glassTemperatureHistory[(historyArraysIndex-1)%historyArraysSize])>0.4) && (abs(glassTemperature - glassTemperatureHistory[(historyArraysIndex-2)%historyArraysSize])>0.4) ) 
     {
-      glassTemperature = glassTemperatureHistory[(historyArraysIndex-1)%historyArraysSize];
+      glassTemperature = glassTemperatureHistory[(historyArraysIndex-2)%historyArraysSize];
       // Send a message to the serial
       msgBuffer += "Erroneous glass temperature data point reassigned";
     }
@@ -987,19 +1038,20 @@ void RemoveErroneousGlassTemperatureReadings()
 
 void RemoveErroneousAirTemperatureReadings()
 {
-  
+  /*
     if ( (isHistoryArraysFilled == true) && (airTemperatureHistory[(historyArraysIndex-1)%historyArraysSize] != airTemperatureHistory[(historyArraysIndex-2)%historyArraysSize]) )
   {
     if ( (abs(airTemperature - airTemperatureHistory[(historyArraysIndex-1)%historyArraysSize])>0.4) && (abs(airTemperature - airTemperatureHistory[(historyArraysIndex-2)%historyArraysSize])>0.4) ) 
     {
-      airTemperature = airTemperatureHistory[(historyArraysIndex-1)%historyArraysSize];
+      //airTemperature = (airTemperatureHistory[(historyArraysIndex-2)%historyArraysSize]+airTemperatureHistory[(historyArraysIndex-1)%historyArraysSize])/2;
+      airTemperature = airTemperatureHistory[(historyArraysIndex-3)%historyArraysSize];
       // Send a message to the serial
       msgBuffer += "Erroneous enclosure temperature data point reassigned";
     }
   }
+  */
   
   
-  /*
   // Calculate difference between current air temperature and previous air temperature reading
   double previousAirTemperatureDataDifference = abs(airTemperature - previousAirTemperature);
 
@@ -1010,11 +1062,17 @@ void RemoveErroneousAirTemperatureReadings()
   if (previousAirTemperatureDataDifference > 0.25 && oldestAirTemperatureDataDifference > 0.25 && previousAirTemperature != 0 && oldestAirTemperature != 0)
   {
     // Reassign this inaccurate data point to the value of the previous reading
-    airTemperature = previousAirTemperature;
-
     // Send a message to the serial
-    msgBuffer += "Erroneous air temperature data point reassigned";
+    msgBuffer += "Erroneous air temperature (";
+    msgBuffer += airTemperature; 
+    msgBuffer += ") reassigned, ";
+    msgBuffer += " 1 & 2 previous readings were ";
+    msgBuffer += airTemperatureHistory[(historyArraysIndex-1)%historyArraysSize];
+    msgBuffer += " and ";
+    msgBuffer += airTemperatureHistory[(historyArraysIndex-2)%historyArraysSize];
+    airTemperature = oldestAirTemperature;
+    
   }
-  */
+  
   
 }
