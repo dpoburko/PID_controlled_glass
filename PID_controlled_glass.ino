@@ -430,7 +430,7 @@ void loop()
   }
 
    //%%% @Izzy, I have just noticed that we have no errorChecking when in manual mode. This seems prone to troubles. Let's rethink this.
-	
+   // DP - isAirTempuratureCliminb might more easily be determined as a slope from the airTemperatureHistory
 	
   // Check if the air temperature is sufficiently heated
   if (isAirTemperatureClimbing == true)
@@ -532,10 +532,12 @@ void loop()
         Serial.println("   Ptinnn. - heaterPID.SetTunings(ppp,nnn,ddd)");
         Serial.println("   Ptdnnn. - heaterPID.SetTunings(ppp,iii,nnn)");
         Serial.println("   Pdnnnn. - call heaterPID.SetSampleTime(nnnn) & STEINHART::setSampleTime(nnnn)");
-        Serial.println("   L - print column headers");
-        Serial.println("   St - print temperature history");
-        Serial.println("   Se - print mse history");
-        Serial.println("   Sa - print air temp history");
+        Serial.println("   L - List column headers");
+        Serial.println("   St - Show temperature history in serial monitor");
+        Serial.println("   Se - Show mse history in serial monitor");
+        Serial.println("   Sa - Show air temp history in serial monitor");
+	Serial.println("   Eax - Acknowledge error #n and ignore for grace time period");
+	Serial.println("   Egm - update error gracetime period in minutes");
         
         Serial.println("   >>>>>>>>>>>>>><<<<<<<<<<<<<<<<");
       }
@@ -729,7 +731,27 @@ void ParsePIDCmd()
     Serial.print(", index = ");
     Serial.println(historyArraysIndex);
   } 
+  else if(incomingSerial[0] == 'E' && incomingSerial[1] == 'a' )
+  {
+       int thisError = incomingSerial[3];
+       
+       timesErrorsAcknowledged[thisError] = millis(); 
+       areErrorsAcknowledged[thisError] = true;
 
+       msgBuffer += " Error ";
+       msgBuffer += thisError;	  
+       msgBuffer += " acknolwedged & silenced for ";
+       msgBuffer += String(errorGraceTime/6000,1);
+       msgBuffer += " min.";
+  } 
+  else if(incomingSerial[0] == 'E' && incomingSerial[1] == 'g' )
+  {
+        int minGraceTime = incomingSerial[3];
+	errorGraceTime = minGraceTime * 60000;
+        msgBuffer += " errorGraceTime now ";
+        msgBuffer += String(minGraceTime, 0);
+	msgBuffer += " min";	  
+  } 
   else if(incomingSerial[0] == 'L')
   {
     Serial.println("T(enclosure):\tT(glass):\tT(slope):\tT(mse):\tsetPt(glass):\tsetPt(enclosure):\tPWMOut:\tV(in):\tPID:\tError:\tMsg:"); 
