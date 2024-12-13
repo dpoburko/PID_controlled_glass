@@ -30,22 +30,35 @@ we also need all the values that errorCheck relies on
   
   @this point, having to pass so many variables, I wonder if it would make sense to create a structure to hold the glass-related variables
   (https://www.teachmemicro.com/arduino-programming-structs/)
-  struct heater
+  struct tempSensor
   {
        double temperature;
        double maxTemperature;
        double setPoint;
+       double history[60];
+       double slope;
+       int slopeInterval;
+       char name;
   }
+  
+  struc heater
+  {
+      double output
+      double prevOutput
+      doulbe outputIfError
+  }
+  
   which would be accessed as
   heater glassLid;
   glassLid.temperature = 37.0;
 
    Similarly, could we create an array of structures for error codes like 
-   struct errorCodes{
+   struct errorCodes {
    	int code;
        	bool active;
 	bool acknowledged;
  	double startTime;
+  	char name;
    }
    errorCodes errors[5];
    //access as
