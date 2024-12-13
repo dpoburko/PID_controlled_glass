@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include "heaterStatus.h"
+#include "errorCheck.h"
 
 //This lirbary is meant to checking if the PID controlled glass heater is working as expected
 
@@ -9,14 +9,6 @@
 // pointers in a constructor look like 'type* nameToPointer'
 
 /*
-Error variables used in .ino
-int errorCode = 0; //Note that the ino file doesn't really need to have it's own variable for errorCode. It should simply be able to pull heaterStatus.errorCode if errorCode is public
-int errorCodePrevious = 0; // keep track of previous error code
-double timeErrorAcknowledged =0; //for keeping track of when error was acknowledged 
-bool isErrorAcknowledged = true;
-bool isErrorBuffered = false;
-bool isUserOverride = false;
-long startUpTime;
 errorMsg - needs to be passed to the library too. 
 
 we also need all the values that errorCheck relies on
@@ -66,7 +58,7 @@ we also need all the values that errorCheck relies on
 */
 
 //Constructor
-heaterStatus::heaterStatus(double* glassTemp, double* maxGlasTemp, double* glassSetPt,char* errorMessage,double* heaterOutput, double* lastHeaterOutput, double* PWMOutputIfError, double* glassTemperatureSlope) {
+errorCheck::errorCheck(double* glassTemp, double* maxGlasTemp, double* glassSetPt,char* errorMessage,double* heaterOutput, double* lastHeaterOutput, double* PWMOutputIfError, double* glassTemperatureSlope) {
 
   //the constructor receives variables and pointer values from the .ino file
   //these values are assigned to variables that are cast/initiated in the matching .h files
@@ -96,7 +88,7 @@ heaterStatus::heaterStatus(double* glassTemp, double* maxGlasTemp, double* glass
   
 }
 
-heaterStatus::graceTime(double graceTime) {
+errorCheck::graceTime(double graceTime) {
   //change the error grace time
   _errorGraceTime = graceTime;
   errorBuffer += newError;
@@ -105,7 +97,7 @@ heaterStatus::graceTime(double graceTime) {
   errorBuffer += " ms.";
 }
 
-heaterStatus::timeOut(int errorCode, double newTimeOut) {
+errorCheck::timeOut(int errorCode, double newTimeOut) {
   //change the error grace time
   _errorAcknowledgeTimeout[errorCode] = newTimeOut; 
   errorBuffer += newError;
@@ -116,7 +108,7 @@ heaterStatus::timeOut(int errorCode, double newTimeOut) {
   errorBuffer += " ms.";
 }
 
-heaterStatus::update() {
+errorCheck::update() {
 
   //this section should essentially replicate errorCheck()  from the .ino file
   newErrorCode = 0;
@@ -225,5 +217,3 @@ heaterStatus::update() {
   *thisErrorCode = newErrorCode;
     
 }
-
-

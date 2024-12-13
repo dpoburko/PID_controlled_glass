@@ -1,20 +1,22 @@
-#ifndef heaterStatus_H
-#define heaterStatus_H
+#ifndef errorCheck_H
+#define errorCheck_H
 
 #include "Arduino.h"
-
-#define LIBRARY_VERSION 1.0.0
+#include "structures.h"
 
 //place variables and functions names here
 
 
 
-
-class heaterStatus {
+class errorCheck {
 
   //Functions
   // in cpp heaterStatus::heaterStatus(double* glassTemp, double* maxGlasTemp, double* glassSetPt,char* errorMessage,double* heaterOutput, double* lastHeaterOutput, double* PWMOutputIfError, double* glassTemperatureSlope) 
-  heaterStatus(double*, double*, double*,char*,double*, double*, double*, double*);
+  // collapse heater and thermistor values in structures to be passed
+
+  //need to pass the lidPID structure, the lid structure, and msgBuffer
+  
+  errorCheck(double*, double*, double*,char*,double*, double*, double*, double*);
   void graceTime(double); 
   void errorTimeOut(int,double);
   void update();
@@ -47,4 +49,3 @@ class heaterStatus {
 
 }; //close heaterStatus class
 #endif
-
