@@ -39,6 +39,17 @@ we also need all the values that errorCheck relies on
   which would be accessed as
   heater glassLid;
   glassLid.temperature = 37.0;
+
+   Similarly, could we create an array of structures for error codes like 
+   struct errorCodes{
+   	int code;
+       	bool active;
+	bool acknowledged;
+ 	double startTime;
+   }
+   errorCodes errors[5];
+   //access as
+   errors[0].code
 */
 
 //Constructor
