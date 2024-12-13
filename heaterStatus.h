@@ -7,9 +7,13 @@
 
 //place variables and functions names here
 
+
+
+
 class heaterStatus {
 
   //Functions
+  // in cpp heaterStatus::heaterStatus(double* glassTemp, double* maxGlasTemp, double* glassSetPt,char* errorMessage,double* heaterOutput, double* lastHeaterOutput, double* PWMOutputIfError, double* glassTemperatureSlope) 
   heaterStatus(double*, double*, double*,char*,double*, double*, double*, double*);
   void graceTime(double); 
   void errorTimeOut(int,double);
