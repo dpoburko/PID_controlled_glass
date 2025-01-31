@@ -17,7 +17,7 @@ we also need all the values that errorCheck relies on
   glassSetpoint
   PWMOutput
   PWMOutputLast
-  errorBuffer
+  _errorBuffer
   PWMOutputIfError
   
   @this point, having to pass so many variables, I wonder if it would make sense to create a structure to hold the glass-related variables
@@ -57,22 +57,15 @@ we also need all the values that errorCheck relies on
    errors[0].code
 */
 
+//??? Does _errorBuffer also need to be passed by ref?
+
+//Executive decision: Damon is encouraging references to used as refs in arguments, then assigned to pointers (*) in an assignment list prior to the constructor content
+
 //Constructor
-errorCheck::errorCheck(double* glassTemp, double* maxGlasTemp, double* glassSetPt,char* errorMessage,double* heaterOutput, double* lastHeaterOutput, double* PWMOutputIfError, double* glassTemperatureSlope) {
-
-  //the constructor receives variables and pointer values from the .ino file
-  //these values are assigned to variables that are cast/initiated in the matching .h files
-  //make local version of variables that are received as pointers from .ino file
-
-  // the _ denotes a private variable
-  _glassTemp = glassTemp; 
-  _maxGlassTemp = maxGlassTemp;
-  _glassSetPt = glassSetPt;
-  _errorMessage = errorMessage;
-  _heaterOutput = heaterOutput;
-  _lastHeaterOutput = lastHeaterOutput;
-  _PWMOutputIfError = PWMOutputIfError;
-  _glassTemperatureSlope = glassTemperatureSlope;
+errorCheck::errorCheck(String& aBuffer, double& glassTemp, double& maxGlasTemp, double& glassSetPt,char& errorMessage,double& heaterOutput, double& lastHeaterOutput, double& PWMOutputIfError, double& glassTemperatureSlope):
+    _errorBuffer(&aBuffer), _glassTemp(&glassTemp),_maxGlassTemp (&maxGlassTemp), _glassSetPt (&glassSetPt), _errorMessage (&errorMessage), _heaterOutput (&heaterOutput), _lastHeaterOutput (&lastHeaterOutput), _PWMOutputIfError (&PWMOutputIfError),
+    _glassTemperatureSlope (&glassTemperatureSlope),
+  {
 
   _errorGraceTime = 180000; // move this to only be in the library, but could be updated from .ino via a function    
   
@@ -83,29 +76,27 @@ errorCheck::errorCheck(double* glassTemp, double* maxGlasTemp, double* glassSetP
       _timesErrorsAcknowledged[i] = 0.0;
       _errorAcknowledgeTimeout[i] = _errorGraceTime; 
     }
-
-    
-  
+ 
 }
 
 errorCheck::graceTime(double graceTime) {
   //change the error grace time
   _errorGraceTime = graceTime;
-  errorBuffer += newError;
-  errorBuffer += " Error graceTime now ";
-  errorBuffer += String(graceTime,0);
-  errorBuffer += " ms.";
+  _errorBuffer += newError;
+  _errorBuffer += " Error graceTime now ";
+  _errorBuffer += String(graceTime,0);
+  _errorBuffer += " ms.";
 }
 
 errorCheck::timeOut(int errorCode, double newTimeOut) {
   //change the error grace time
   _errorAcknowledgeTimeout[errorCode] = newTimeOut; 
-  errorBuffer += newError;
-  errorBuffer += " Error ";
-  errorBuffer += errorCode;
-  errorBuffer += " timeout now ";
-  errorBuffer += String(newTimeOut,0);
-  errorBuffer += " ms.";
+  _errorBuffer += newError;
+  _errorBuffer += " Error ";
+  _errorBuffer += errorCode;
+  _errorBuffer += " timeout now ";
+  _errorBuffer += String(newTimeOut,0);
+  _errorBuffer += " ms.";
 }
 
 errorCheck::update() {
@@ -133,8 +124,8 @@ errorCheck::update() {
     if (!isErrorBuffered)
     {
       isErrorBuffered = true;
-      errorBuffer += newError;
-      errorBuffer += " Glass thermistor disconected. Output shut off.";
+      _errorBuffer += newError;
+      _errorBuffer += " Glass thermistor disconected. Output shut off.";
     }
     _errorCodesActive[0]= true;
   } 
@@ -148,9 +139,9 @@ errorCheck::update() {
     if (!isErrorBuffered)
     {
       isErrorBuffered = true;
-      errorBuffer += newError;
-      errorBuffer += " Glass >= max temp. Throttling output to ";
-      errorBuffer += String(PWMOutputIfError, 0);
+      _errorBuffer += newError;
+      _errorBuffer += " Glass >= max temp. Throttling output to ";
+      _errorBuffer += String(PWMOutputIfError, 0);
     }
     _errorCodesActive[1]= true;
   }
@@ -163,9 +154,9 @@ errorCheck::update() {
     {
       newError = 3;
       errorCodePrevious = newError;
-      errorBuffer += newError;
-      errorBuffer += " Thermal runaway detected. Throttling output to ";			
-      errorBuffer += String(PWMOutputIfError, 0);
+      _errorBuffer += newError;
+      _errorBuffer += " Thermal runaway detected. Throttling output to ";			
+      _errorBuffer += String(PWMOutputIfError, 0);
     }
     _errorCodesActive[2]= true;
   }
@@ -185,8 +176,8 @@ errorCheck::update() {
       if (!isErrorBuffered)
       {
         newError = 4;
-        errorBuffer += newError;
-  	    errorBuffer += " Under-powered. Increase max output.";
+        _errorBuffer += newError;
+  	    _errorBuffer += " Under-powered. Increase max output.";
       }
       _errorCodesActive[3]= true;
     }
@@ -199,19 +190,19 @@ errorCheck::update() {
       {
         newError = 5;
         PWMOutput = 0;
-  	    errorBuffer += newError;
-  	    errorBuffer += " Heater failure. Output - off.";
+  	    _errorBuffer += newError;
+  	    _errorBuffer += " Heater failure. Output - off.";
         _errorCodesActive[4]= true;
       }
     }
     else 
     {
-      errorBuffer += newError;
+      _errorBuffer += newError;
     }
   }
 	else 
   {
-      errorBuffer += newError;
+      _errorBuffer += newError;
   }
   
   *thisErrorCode = newErrorCode;
