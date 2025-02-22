@@ -9,7 +9,7 @@ const int historyArraySize = 60;
 //this is meant primarily to hold the hardware details of a thermistor
 struct thermistor
 {
-  String = name;
+  String name = "name";
   byte pin; 
   //double temperature;
   //double maxTemperature;
@@ -26,21 +26,21 @@ struct thermistor
   int maxAutoIncrease; // maximum that set point can be increased when auto adapting to achieve a temp of another thermistor
   double cummSetpointChange; // cummulative automated changes from last used-defined setpoint
   double autoSetpointChange;
-  String name;
+  
   double rNominal;
   double rSeries;
   double tNominal; // nominal temperature
   double bCoefficient; // beta coefficient
 
   thermistor(String thisName, byte thisPin, double thisrNominal = 10000, double thisrSeries = 9985, double thistNominal = 25.0, double thisCoef = 3435) :
-    pin(&thispin), rNominal(&thisrNominal), rSeries(&thisrSeries), tNominal(&thistNominal), bCoefficient()
+   name(thisName), pin(thisPin), rNominal(thisrNominal), rSeries(thisrSeries), tNominal(thistNominal), bCoefficient(thisCoef)
   {
     maxAutoIncrease = 5;    
     cummSetpointChange = 0; 
     autoSetpointChange = 0; 
   }
   
-}
+};
 
 //OK. To allow optional definition of default values at instantiation, the constructor needs to have all those possilbe arguments with default values that are then passed to 
 //structure elements in the assignment list
@@ -101,35 +101,34 @@ struct generalSensor {
     
   };
 
-  struct PIDextras {
-    double P;
-    double I;
-    double D;
-    int mode; 
-    double setpoint;
-    double maxOutputNormal;
-    double maxOutputHigh;
-    double errorOutput;
-    double deltaForMax;
-    //less commonly changed    
-    double maxOutputCUrrent;
-    double outputFromPID;
-    double outputToDevice;
-    double prevOutput;
-    bool newValue;
+struct PIDextras {
+  double P;
+  double I;
+  double D;
+  int mode; 
+  double setpoint;
+  double maxOutputNormal;
+  double maxOutputHigh;
+  double errorOutput;
+  double deltaForMax;
+  //less commonly changed    
+  double maxOutputCUrrent;
+  double outputFromPID;
+  double outputToDevice;
+  double prevOutput;
+  bool newValue;
 
-    PIDextra(double aP, double aI, double aD, double aSetpoint, double amaxOutputNormal,double amaxOutputHigh,double aErrorOutput, int aMode)
-            : P(&aP),I(&aI),D(&aD),setpoint(&aSetpoint),maxOutputNormal(&amaxOutputNormal),maxOutputHigh(&amaxOutputHigh),errorOutput(&aErrorOutput), mode(&aMode)
-    {
-      newValue = false;
-      prevOutput = 0;
-      
-      outputToDevice =0;
-      outputFromPID = 0; 
-      deltaForMax = 3 ;
-      maxOutputCUrrent = maxOutputNormal;
-    }
+  PIDextras(double aP, double aI, double aD, double aSetpoint, double amaxOutputNormal,double amaxOutputHigh,double aErrorOutput, int aMode):
+          P(aP),I(aI),D(aD),setpoint(aSetpoint),maxOutputNormal(amaxOutputNormal),maxOutputHigh(amaxOutputHigh),errorOutput(aErrorOutput), mode(aMode)
+  {
+    newValue = false;
+    prevOutput = 0;
+    outputToDevice =0;
+    outputFromPID = 0; 
+    deltaForMax = 3 ;
+    maxOutputCUrrent = maxOutputNormal;
   }
+};
   
   /*
   struct heater
@@ -144,6 +143,8 @@ struct generalSensor {
     {  }
   }
   */
+  //define errorCode array size here
+  const int numberOfErrorCodes = 5;
   
   struct errorCode {
     int ID;
@@ -155,7 +156,7 @@ struct generalSensor {
     double sleepTime; // duration that silenced error sleeps
     bool buffered;
     bool userOverride; 
-  }
+  };
 
   struct timers {
     unsigned long start;
@@ -163,6 +164,6 @@ struct generalSensor {
     bool active;
     unsigned long counter;
     String name;
-  }
+  };
 
 #endif

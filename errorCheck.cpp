@@ -10,7 +10,6 @@
 
 /*
 errorMsg - needs to be passed to the library too. 
-
 we also need all the values that errorCheck relies on
   glassTemperature
   maxGlassTemperature
@@ -19,58 +18,32 @@ we also need all the values that errorCheck relies on
   PWMOutputLast
   _errorBuffer
   PWMOutputIfError
-  
-  @this point, having to pass so many variables, I wonder if it would make sense to create a structure to hold the glass-related variables
-  (https://www.teachmemicro.com/arduino-programming-structs/)
-  struct tempSensor
-  {
-       double temperature;
-       double maxTemperature;
-       double setPoint;
-       double history[60];
-       double slope;
-       int slopeInterval;
-       char name;
-  }
-  
-  struc heater
-  {
-      double output
-      double prevOutput
-      doulbe outputIfError
-  }
-  
-  which would be accessed as
-  heater glassLid;
-  glassLid.temperature = 37.0;
-
-   Similarly, could we create an array of structures for error codes like 
-   struct errorCodes {
-   	int code;
-       	bool active;
-	bool acknowledged;
- 	double startTime;
-  	char name;
-   }
-   errorCodes errors[5];
-   //access as
-   errors[0].code
 */
 
-//??? Does _errorBuffer also need to be passed by ref?
+String& aBuffer,
+char& errorMessage,
+//part of generalSensor lidTemperature
+double& glassTemp,
+double& maxGlasTemp,
+double& glassSetPt,
+double& glassTemperatureSlope
+//part of PIDextras heaterValues
+double& heaterOutput,
+double& lastHeaterOutput,
+double& PWMOutputIfError,
 
-//Executive decision: Damon is encouraging references to used as refs in arguments, then assigned to pointers (*) in an assignment list prior to the constructor content
+//re-write to pass 'generalSensor lidTemperature'
 
 //Constructor
-errorCheck::errorCheck(String& aBuffer, double& glassTemp, double& maxGlasTemp, double& glassSetPt,char& errorMessage,double& heaterOutput, double& lastHeaterOutput, double& PWMOutputIfError, double& glassTemperatureSlope):
-    _errorBuffer(&aBuffer), _glassTemp(&glassTemp),_maxGlassTemp (&maxGlassTemp), _glassSetPt (&glassSetPt), _errorMessage (&errorMessage), _heaterOutput (&heaterOutput), _lastHeaterOutput (&lastHeaterOutput), _PWMOutputIfError (&PWMOutputIfError),
-    _glassTemperatureSlope (&glassTemperatureSlope),
+errorCheck::errorCheck(String& aBuffer,char& errorMessage ,generalSensor& alidTemperature, PIDextras& aheaterValues):
+    _errorBuffer(&aBuffer),_errorMessage (&errorMessage),  lidTemperature(&alidTemperature), heaterValues(&aheaterValues)
   {
 
   _errorGraceTime = 180000; // move this to only be in the library, but could be updated from .ino via a function    
+
   
   //when initialized, fill these arrays 
-    for (int i = 0; i < _numberOfErrorCodes; i++) {
+    for (int i = 0; i < numberOfErrorCodes; i++) {
       _errorCodesActive[i]= false;
       _areErrorsAcknowledged[i] = true;
       _timesErrorsAcknowledged[i] = 0.0;
