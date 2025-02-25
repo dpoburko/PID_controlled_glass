@@ -45,45 +45,15 @@ void errorCheck::begin(){
   }
 }
 
-//This will likely be actioned through parseSerial rather than the errorCheck library
-void errorCheck::graceTime(int code, double newGraceTime) {
-  //change the error grace time
-  errorCodes[code].gracePeriod = newGraceTime;
-  msgBuffer += " Error ";
-  msgBuffer += code;
-  msgBuffer += " graceTime now ";
-  msgBuffer += String(newGraceTime,0);
-  msgBuffer += " ms.";
-}
-
-//This will likely be actioned through parseSerial rather than the errorCheck library
-void errorCheck::timeOut(int code, double newTimeOut) {
-  //change the error grace time
-  errorCodes[code].gracePeriod = newTimeOut; 
-  msgBuffer += newError;
-  msgBuffer += " Error ";
-  msgBuffer += errorCode;
-  msgBuffer += " timeout now ";
-  msgBuffer += String(newTimeOut,0);
-  msgBuffer += " ms.";
-}
-
-//This will likely be actioned through parseSerial rather than the errorCheck library
-void errorCheck::silence(int code, double newTimeOut) {
-  //change the error grace time
-  errorCodes[code].silenceTimer = millis();
-  errorCodes[code].silenced = true; 
-  msgBuffer += " Error ";
-  msgBuffer += errorCode;
-  msgBuffer += " silenced for ";
-  msgBuffer += String(errorCodes[code].silencePeriod/60000,2);
-  msgBuffer += " min.";
-}
 
 void errorCheck::update() {
 
-  //this section should essentially replicate errorCheck() from the .ino file
+  
   //errorBuffer is referenced from the .ino such that it can be directly updated without de-referencing
+
+  //250225 - "silenceing" an error is meant intended to override the actions of that error
+  // It is no longer clear to me how this makes sense to be different from 'userOverride'
+
     
   //Prior to checking for errors, check if any errors have timed out and reset active state
   for (int i = 0; i < numberOfErrorCodes; i++) {
@@ -109,24 +79,31 @@ void errorCheck::update() {
   // ERROR1: Check if thermistor is not connected. Temp will read as -273C
   if (lidTemperature->value < 0) 
   {
-    newError = 1;
-    
-    //if the error code was not previously acitve, start the error timer and set active == true
-    if (!errorCodes[1].active) {
-      errorCodes[1].active = true;  
-      errorCodes[1].startTimer = millis();  
-    }
-    
-    // Assume PID will be full throttle. Override to 0.
-    heaterValues->outputToDevice = 0;
+    // If error is silenced,when errorCheck.update() is called, the current output will not be modified 
+    // This can't be placed in the initial if statement, because that would result in the 'else' action
+    // that would set errorCodes[1].active = false;
+    if (!errorCodes[1].silenced) {
+      
+      newError = 1;
+      
+      //if the error code was not previously acitve, start the error timer and set active == true
+      if (!errorCodes[1].active) {
+        errorCodes[1].active = true;  
+        errorCodes[1].startTimer = millis();  
+      }
+      
+      // Assume PID will be full throttle. Override to 0.
+      // If error is silenced,when errorChecl.update() is called, the current output will not be modified 
+      heaterValues->outputToDevice = 0;
 
-    //manage buffering the error codes
-    if (!errorCodes[1].buffered) {
-      errorCodes[1].buffered = true;
-      errorBuffer += newError;
-      errorBuffer += " Glass thermistor disconected. Output shut off.";
+  
+      //manage buffering the error codes
+      if (!errorCodes[1].buffered) {
+        errorCodes[1].buffered = true;
+        errorBuffer += newError;
+        errorBuffer += " Glass thermistor disconected. Output shut off.";
+      }
     }
-    
   } else {
     //since each error is now handled as it's own array, there needs to be a mechanism to reset or turn off errorcodes
     if (errorCodes[1].active) {
@@ -135,29 +112,34 @@ void errorCheck::update() {
       errorCodes[1].buffered = false;
     }
   }
-
   
   //ERROR2: Over-temperature
   if (lidTemperature->value >= lidTemperature->upperLimit) 
   {
-    newError = 2;
-    // Gently throttle back the power output to reduce temperature
-    // While too high output will halve recursively - eventually to 0
-    heaterValues->outputToDevice = heaterValues->errorOutput;
-
-    if (!errorCodes[2].active) {
-      errorCodes[2].active = true;
-      errorCodes[2].startTimer = millis();
+    // If error is silenced,when errorCheck.update() is called, the current output will not be modified 
+    // This can't be placed in the initial if statement, because that would result in the 'else' action
+    // that would set errorCodes[2].active = false;
+    if (!errorCodes[2].silenced) {
+          
+      newError = 2;
+      // Gently throttle back the power output to reduce temperature
+      // While too high output will halve recursively - eventually to 0
+  
+      heaterValues->outputToDevice = heaterValues->errorOutput;
+      
+      if (!errorCodes[2].active) {
+        errorCodes[2].active = true;
+        errorCodes[2].startTimer = millis();
+      }
+      
+      //manage buffering the error codes
+      if (!errorCodes[2].buffered) {
+        errorCodes[2].buffered = true;
+        errorBuffer += newError;
+        errorBuffer += " Glass >= max temp. Throttling output to ";
+        errorBuffer += String(heaterValues->errorOutput, 0);
+      }
     }
-    
-    //manage buffering the error codes
-    if (!errorCodes[2].buffered) {
-      errorCodes[2].buffered = true;
-      errorBuffer += newError;
-      errorBuffer += " Glass >= max temp. Throttling output to ";
-      errorBuffer += String(heaterValues->errorOutput, 0);
-    }
-
   } else {
     //reset error2
     if (errorCodes[2].active) {
@@ -171,22 +153,28 @@ void errorCheck::update() {
   // Also watch for climbing temperature (positivie slope) if thermal run away
   if (glassTempDiff > 4.0 && (millis() - startUpTime) > errorCodes[3].gracePeriod && lidTemperature->slope[lidTemperature->index-1]>0.1)  {
 
-    newError = 3;
-
-    heaterValues->outputToDevice = heaterValues->errorOutput;
-    
-    if (!errorCodes[3].active) {
-      errorCodes[3].active = true;
-      errorCodes[3].startTimer = millis();
+    // If error is silenced,when errorCheck.update() is called, the current output will not be modified 
+    // This can't be placed in the initial if statement, because that would result in the 'else' action
+    // that would set errorCodes[3].active = false;
+    if (!errorCodes[3].silenced) {
+      
+      newError = 3;
+  
+      heaterValues->outputToDevice = heaterValues->errorOutput;
+      
+      if (!errorCodes[3].active) {
+        errorCodes[3].active = true;
+        errorCodes[3].startTimer = millis();
+      }
+      
+      if (!errorCodes[3].buffered) {
+        errorCodes[3].buffered = true;
+        errorBuffer += newError;
+        errorBuffer += " Thermal runaway detected. Throttling output to ";      
+        errorBuffer += String(heaterValues->errorOutput, 0);
+      }
     }
-    
-    if (!errorCodes[3].buffered) {
-      errorCodes[3].buffered = true;
-      errorBuffer += newError;
-      errorBuffer += " Thermal runaway detected. Throttling output to ";      
-      errorBuffer += String(heaterValues->errorOutput, 0);
-    }
-    
+        
   } else {
     //reset error3
     if (errorCodes[3].active) {
@@ -206,21 +194,26 @@ void errorCheck::update() {
     
     if (glassTempDiff < -0.5 && lidTemperature->slope[lidTemperature->index-1] < 0.5 && lidTemperature->slope[lidTemperature->index-1] > -1 && (millis() - startUpTime) > errorCodes[4].gracePeriod) 
     {
-
-      newError = 4;
   
-      if (!errorCodes[4].active) {
-        errorCodes[4].active = true;
-        errorCodes[4].startTimer = millis();
-      }
-      
-      if (!errorCodes[4].buffered) {
-        errorCodes[4].buffered = true;
-        errorBuffer += newError;
-        errorBuffer += " Under-powered. Increase max output.";      
-      }
+      // If error is silenced,when errorCheck.update() is called, the current output will not be modified 
+      // This can't be placed in the initial if statement, because that would result in the 'else' action
+      // that would set errorCodes[4].active = false;
+      if (!errorCodes[4].silenced) {
+    
+        newError = 4;
+    
+        if (!errorCodes[4].active) {
+          errorCodes[4].active = true;
+          errorCodes[4].startTimer = millis();
+        }
+        
+        if (!errorCodes[4].buffered) {
+          errorCodes[4].buffered = true;
+          errorBuffer += newError;
+          errorBuffer += " Under-powered. Increase max output.";      
+        }
 
-      
+      }    
     } else {
       //reset error3
       if (errorCodes[4].active) {
@@ -233,20 +226,25 @@ void errorCheck::update() {
     // Allow  period if system re-booting and below set point with transiently falling temp
     if (glassTempDiff < -0.5 && lidTemperature->slope[lidTemperature->index-1] <= -1 && (millis() - startUpTime) > errorCodes[5].gracePeriod)  {
 
-      newError = 5;
-      heaterValues->outputToDevice = 0;
-      
-      if (!errorCodes[5].active) {
-        errorCodes[5].active = true;
-        errorCodes[5].startTimer = millis();
+      // If error is silenced,when errorCheck.update() is called, the current output will not be modified 
+      // This can't be placed in the initial if statement, because that would result in the 'else' action
+      // that would set errorCodes[5].active = false;
+      if (!errorCodes[5].silenced) {
+
+        newError = 5;
+        heaterValues->outputToDevice = 0;
+        
+        if (!errorCodes[5].active) {
+          errorCodes[5].active = true;
+          errorCodes[5].startTimer = millis();
+        }
+        
+        if (!errorCodes[5].buffered) {
+          errorCodes[5].buffered = true;
+          errorBuffer += newError;
+          errorBuffer += " Heater failure. Output - off.";      
+        }
       }
-      
-      if (!errorCodes[5].buffered) {
-        errorCodes[5].buffered = true;
-        errorBuffer += newError;
-        errorBuffer += " Heater failure. Output - off.";      
-      }
-      
     } else {
       if (errorCodes[5].active) {
         errorCodes[5].active = false;

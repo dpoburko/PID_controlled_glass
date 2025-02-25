@@ -869,7 +869,7 @@ void GetBuckConverterVoltage(double &newVoltage)
   }
  
   // Convert the 0-1024 analog input to a voltage
-  thisVoltage = (thisVoltage * boardVoltageOut) / 1024.0;   
+  thisVoltage = (thisVoltage * boardVoltageOut) / 1023.0;   
   //Correct for the voltage-divide upstream of the measured voltage
   thisVoltage = thisVoltage / (resistor2Coefficient / (resistor1Coefficient + resistor2Coefficient));
 

@@ -26,15 +26,8 @@ class errorCheck {
     int errorCodePrevious;
 
     void begin();
-  
-    void graceTime(int, double); 
-    
-    void timeOut(int,double);
-  
-    void silence(int,double);
     
     void update();
-
     
   private:
     
@@ -42,12 +35,8 @@ class errorCheck {
     String& msgBuffer;
     long& startUpTime;
     int newError;
-    
     generalSensor* lidTemperature;
     PIDextras* heaterValues;
-    
-    void setSampleTime(int);
-
 
 }; //close heaterStatus class
 #endif

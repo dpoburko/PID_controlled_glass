@@ -31,22 +31,8 @@
           // Go to parse function to read the next message inputted
           parsePIDCmd();
   
-          // User override
-          //isUserOverride = true;  
         }
-        //%% This will be obsolete when errorCheck moves to library
-        /*
-        // If user inputted OK, indicate that the error acknowledgement has been received
-        else if ((serialMain->incoming[0] == 'O') & (serialMain->incoming[1] == 'K')) 
-        {
-          // Print acknowledgement to serial
-          Serial.println("OK. Error acknowledgement received");
-  
-          // Set error acknowledged boolean to true
-          isErrorAcknowledged = true; 
-          
-        }
-        */
+
         // If user inputted h, H, or ?, print out available serial commands
         else if (serialMain->incoming[0] == 'h' || serialMain->incoming[0] == 'H' || serialMain->incoming[0] == '?') 
         {
@@ -69,8 +55,8 @@
           Serial.println("   St - Show temperature history in serial monitor");
           //Serial.println("   Se - Show mse history in serial monitor");
           Serial.println("   Sa - Show air temp history in serial monitor");
-          Serial.println("   Eaxn - Acknowledge error #x and ignore for grace time period or optional n minutes ");
-          Serial.println("   Egxn - update error gracetime period in minutes");
+          Serial.println("   Eaxn - Silence/override error x and ignore for n minutes ");
+          Serial.println("   Egxn - update error x gracePeriod to n minutes");
           Serial.println("   >>>>>>>>>>>>>><<<<<<<<<<<<<<<<");
         }
         // If another message is inputted, print to the serial that the message was not recognized
