@@ -5,11 +5,11 @@
 #include <PID_v1.h>
 
 
-  parseSerial::parseSerial(serialMsg& aSerial, PID& aHeaterPID, IDextras& aHeaterValues ,String& aMsgBUffer, generalSensor& aTemp, generalSensor& bTemp)
-  :  serialMain(&aSerial), heaterPID(&aHeaterPID), heaterValues(&aHeaterValues), msgBuffer(&aMsgBuffer),lidTemperature(&aTemp), enclosureTemperature(&bTemp) { }
+  parseSerial::parseSerial(serialMsg& aSerial, PID& aHeaterPID, PIDextras& aHeaterValues ,String& aMsgBuffer, generalSensor& aTemp, generalSensor& bTemp)
+  :  serialMain(&aSerial), heaterPID(&aHeaterPID), heaterValues(&aHeaterValues), msgBuffer(aMsgBuffer),lidTemperature(&aTemp), enclosureTemperature(&bTemp) { }
 
   /*
-   * This that need to be passed
+   * Things that need to be passed
    * msgBuffer, PIDmode, heaterPID str, PWMoutput >> lidHeater->output, heaterValues->errorOutput >> lidHeater->errorOutput
    * need to get isAirTemperatureClimbing into a structure.... are use slope and setpoint relationship in its place.
    */
@@ -23,7 +23,7 @@
       serialMain->length = Serial.readBytesUntil(serialMain->end, serialMain->incoming, serialMain->size);
   
       // If the message length is less than the maximum allowed message length, read the message
-      if (serialMain->length <= serialMaxMessageLength) 
+      if (serialMain->length <= serialMain->size) 
       {
         // If user inputted P, T, or E, go to parse function to read the next message inputted
         if (serialMain->incoming[0] == 'P' || serialMain->incoming[0] == 'T'|| serialMain->incoming[0] == 'S'|| serialMain->incoming[0] == 'E' || serialMain->incoming[0] == 'L') 
@@ -32,7 +32,7 @@
           parsePIDCmd();
   
           // User override
-          isUserOverride = true;  
+          //isUserOverride = true;  
         }
         //%% This will be obsolete when errorCheck moves to library
         /*
@@ -69,8 +69,8 @@
           Serial.println("   St - Show temperature history in serial monitor");
           //Serial.println("   Se - Show mse history in serial monitor");
           Serial.println("   Sa - Show air temp history in serial monitor");
-          Serial.println("   Eax - Acknowledge error #n and ignore for grace time period");
-          Serial.println("   Egm - update error gracetime period in minutes");
+          Serial.println("   Eaxn - Acknowledge error #x and ignore for grace time period or optional n minutes ");
+          Serial.println("   Egxn - update error gracetime period in minutes");
           Serial.println("   >>>>>>>>>>>>>><<<<<<<<<<<<<<<<");
         }
         // If another message is inputted, print to the serial that the message was not recognized
@@ -91,6 +91,7 @@
         {
           //PIDMode = automaticPIDMode;   
           heaterPID->SetMode(AUTOMATIC);
+          
           msgBuffer += "PID set to Automatic"; 
         }
   
@@ -153,7 +154,8 @@
         enclosureTemperature->setpointNoted = false;
   
       } else if (serialMain->incoming[1] == 'l') 
-  
+
+      {
         if (serialMain->incoming[2] == 'm') 
         {
           char upper[3] = {serialMain->incoming[3],serialMain->incoming[4],serialMain->incoming[5]};
@@ -245,28 +247,35 @@
     } 
     else if(serialMain->incoming[0] == 'E' && serialMain->incoming[1] == 'a' )
     {
-         int thisError = serialMain->incoming[3];
+         int thisError = serialMain->incoming[2];
          
-         timesErrorsAcknowledged[thisError] = millis(); 
-         areErrorsAcknowledged[thisError] = true;
-  
+         errorCodes[thisError].silenceTimer = millis(); 
+         errorCodes[thisError].silenced = true;
+         if (serialMain->length > 3) {
+          int thisMinutes = serialMain->incoming[3]; 
+          errorCodes[thisError].silencePeriod = thisMinutes * 60000;
+         }
          msgBuffer += " Error ";
          msgBuffer += thisError;    
-         msgBuffer += " acknolwedged & silenced for ";
-         msgBuffer += String(errorGraceTime/6000,1);          //!!!!!!!!!!!!!!!!!!! ERROR CODES VALUES need to b sorted once errorCheck is more finalized
+         msgBuffer += " silenced for ";
+         msgBuffer += String(errorCodes[thisError].silencePeriod/60000,1);          //!!!!!!!!!!!!!!!!!!! ERROR CODES VALUES need to b sorted once errorCheck is more finalized
          msgBuffer += " min.";
     } 
     else if(serialMain->incoming[0] == 'E' && serialMain->incoming[1] == 'g' )
     {
+      int thisError = serialMain->incoming[2];
       int minGraceTime = serialMain->incoming[3];
-      errorGraceTime = minGraceTime * 60000;
-      msgBuffer += " errorGraceTime now ";
+      //errorGraceTime = minGraceTime * 60000;
+      errorCodes[thisError].gracePeriod = minGraceTime * 60000;
+      msgBuffer += " Error ";
+      msgBuffer += thisError;      
+      msgBuffer += " grace period now ";
       msgBuffer += String(minGraceTime, 0);
       msgBuffer += " min";    
     } 
     else if(serialMain->incoming[0] == 'L')
     {
-      Serial.println("\tT(enclosure):\tT(lid):\tT(encl.slope):\tT(lidThermistor.slope):\tT(mse):\tsetPt(lid):\tsetPt(enclosure):\tPWMOut:\tV(in):\tPID:\tError:\tMsg:";); 
+      Serial.println("\tT(enclosure):\tT(lid):\tT(encl.slope):\tT(lidThermistor.slope):\tT(mse):\tsetPt(lid):\tsetPt(enclosure):\tPWMOut:\tV(in):\tPID:\tError:\tMsg:"); 
     } 
     else 
     {

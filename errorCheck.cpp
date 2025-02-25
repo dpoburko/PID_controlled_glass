@@ -1,141 +1,201 @@
 #include <Arduino.h>
 #include "errorCheck.h"
+#include "structures.h"
 
-//This lirbary is meant to checking if the PID controlled glass heater is working as expected
+//This lirbary checks if the PID controlled glass heater is working as expected
 
 //DP to Izzy
 // See this URL for an overview of pointers (*) and references (&) https://www.arduino.cc/reference/en/language/structure/pointer-access-operators/dereference/
 // also https://www.learncpp.com/cpp-tutorial/introduction-to-pointers/
 // pointers in a constructor look like 'type* nameToPointer'
 
-/*
-errorMsg - needs to be passed to the library too. 
-we also need all the values that errorCheck relies on
-  glassTemperature
-  maxGlassTemperature
-  glassSetpoint
-  PWMOutput
-  PWMOutputLast
-  _errorBuffer
-  PWMOutputIfError
-*/
 
-String& aBuffer,
-char& errorMessage,
-//part of generalSensor lidTemperature
-double& glassTemp,
-double& maxGlasTemp,
-double& glassSetPt,
-double& glassTemperatureSlope
-//part of PIDextras heaterValues
-double& heaterOutput,
-double& lastHeaterOutput,
-double& PWMOutputIfError,
+// Define the errorCodes array. Memory if this global variables is allocated before objects like classes or constructors
+errorCode errorCodes[numberOfErrorCodes]; 
 
-//re-write to pass 'generalSensor lidTemperature'
+//Constructor:
+//Note that the String variables can be used directly a reference, and don't need to be converted to pointere. Hence msgBuffer(amsgBuffer) not msgBuffer(&amsgBuffer)
 
-//Constructor
-errorCheck::errorCheck(String& aBuffer,char& errorMessage ,generalSensor& alidTemperature, PIDextras& aheaterValues):
-    _errorBuffer(&aBuffer),_errorMessage (&errorMessage),  lidTemperature(&alidTemperature), heaterValues(&aheaterValues)
-  {
+errorCheck::errorCheck(String& amsgBuffer,String& aerrorBuffer, generalSensor& alidTemperature, PIDextras& aheaterValues, long& astartUpTime):
+    msgBuffer(amsgBuffer),errorBuffer (aerrorBuffer),  lidTemperature(&alidTemperature), heaterValues(&aheaterValues), startUpTime(astartUpTime)
+{
+}
 
-  _errorGraceTime = 180000; // move this to only be in the library, but could be updated from .ino via a function    
+//this might need to move into the .ino setup loop as errorCheck::begin();
 
+void errorCheck::begin(){
+
+  //number of elements must match 'numberOfErrorCodes' at top of errorCheck.h
+  String errorCodeNames[] = {"OK","no thermistor","over temperature","Thermal runaway","Under powered","Heater failure"};
   
-  //when initialized, fill these arrays 
-    for (int i = 0; i < numberOfErrorCodes; i++) {
-      _errorCodesActive[i]= false;
-      _areErrorsAcknowledged[i] = true;
-      _timesErrorsAcknowledged[i] = 0.0;
-      _errorAcknowledgeTimeout[i] = _errorGraceTime; 
+  long tic = millis();
+  //Prior to checking for errors, check if any errors have timed out and reset active state
+  for (int i = 0; i < numberOfErrorCodes; i++) {
+    errorCodes[i].name = errorCodeNames[i];
+    errorCodes[i].ID = i;
+    errorCodes[i].active = false;
+    errorCodes[i].silenced = false;
+    errorCodes[i].buffered = false;
+    errorCodes[i].userOverride = false;
+    errorCodes[i].startTimer = tic;
+    errorCodes[i].gracePeriod = 180000;
+    errorCodes[i].graceTimer = tic;
+    errorCodes[i].silencePeriod = 180000;
+    errorCodes[i].silenceTimer = tic;
+  }
+}
+
+//This will likely be actioned through parseSerial rather than the errorCheck library
+void errorCheck::graceTime(int code, double newGraceTime) {
+  //change the error grace time
+  errorCodes[code].gracePeriod = newGraceTime;
+  msgBuffer += " Error ";
+  msgBuffer += code;
+  msgBuffer += " graceTime now ";
+  msgBuffer += String(newGraceTime,0);
+  msgBuffer += " ms.";
+}
+
+//This will likely be actioned through parseSerial rather than the errorCheck library
+void errorCheck::timeOut(int code, double newTimeOut) {
+  //change the error grace time
+  errorCodes[code].gracePeriod = newTimeOut; 
+  msgBuffer += newError;
+  msgBuffer += " Error ";
+  msgBuffer += errorCode;
+  msgBuffer += " timeout now ";
+  msgBuffer += String(newTimeOut,0);
+  msgBuffer += " ms.";
+}
+
+//This will likely be actioned through parseSerial rather than the errorCheck library
+void errorCheck::silence(int code, double newTimeOut) {
+  //change the error grace time
+  errorCodes[code].silenceTimer = millis();
+  errorCodes[code].silenced = true; 
+  msgBuffer += " Error ";
+  msgBuffer += errorCode;
+  msgBuffer += " silenced for ";
+  msgBuffer += String(errorCodes[code].silencePeriod/60000,2);
+  msgBuffer += " min.";
+}
+
+void errorCheck::update() {
+
+  //this section should essentially replicate errorCheck() from the .ino file
+  //errorBuffer is referenced from the .ino such that it can be directly updated without de-referencing
+    
+  //Prior to checking for errors, check if any errors have timed out and reset active state
+  for (int i = 0; i < numberOfErrorCodes; i++) {
+    if (errorCodes[i].active) {
+      if ( (errorCodes[i].silenced) || (errorCodes[i].userOverride) ) {
+        if ( (millis() - errorCodes[i].silenceTimer )> errorCodes[i].silencePeriod) {
+          errorCodes[i].silenced = false;
+          errorCodes[i].buffered = false;
+          errorCodes[i].userOverride = false;
+        }
+      }
     }
- 
-}
-
-errorCheck::graceTime(double graceTime) {
-  //change the error grace time
-  _errorGraceTime = graceTime;
-  _errorBuffer += newError;
-  _errorBuffer += " Error graceTime now ";
-  _errorBuffer += String(graceTime,0);
-  _errorBuffer += " ms.";
-}
-
-errorCheck::timeOut(int errorCode, double newTimeOut) {
-  //change the error grace time
-  _errorAcknowledgeTimeout[errorCode] = newTimeOut; 
-  _errorBuffer += newError;
-  _errorBuffer += " Error ";
-  _errorBuffer += errorCode;
-  _errorBuffer += " timeout now ";
-  _errorBuffer += String(newTimeOut,0);
-  _errorBuffer += " ms.";
-}
-
-errorCheck::update() {
-
-  //this section should essentially replicate errorCheck()  from the .ino file
-  newErrorCode = 0;
-  
-  //update the value at the memory address that thisErrorCode is pointing to with newErrorCode
-  //this skips the step of the library needing to return the value of newErrorCode;
-  *thisErrorCode = newErrorCode;
+  }
   
   //from errorCheck() from .ino
-  double glassTempDiff = _glassTemp - _glassSetPt; // This was initially deltaFromSetPt and was never declared or set so I did that here
+  double glassTempDiff = lidTemperature->value - lidTemperature->setpoint; // This was initially deltaFromSetPt and was never declared or set so I did that here
 
   // Assume all is well
   int newError = 0;
+
+  //250222 !!!! moving away from else if for error codes, which means that are no longer mutually exclusing !!!!
   
-  // Check if thermistor is not connected. Temp will read as -273C
-  if (_glassTemp < 0) 
+  // ERROR1: Check if thermistor is not connected. Temp will read as -273C
+  if (lidTemperature->value < 0) 
   {
     newError = 1;
     
-    // Assume PID will be full throttle. Override to 0.
-    _heaterOutput = 0;
-    if (!isErrorBuffered)
-    {
-      isErrorBuffered = true;
-      _errorBuffer += newError;
-      _errorBuffer += " Glass thermistor disconected. Output shut off.";
+    //if the error code was not previously acitve, start the error timer and set active == true
+    if (!errorCodes[1].active) {
+      errorCodes[1].active = true;  
+      errorCodes[1].startTimer = millis();  
     }
-    _errorCodesActive[0]= true;
-  } 
+    
+    // Assume PID will be full throttle. Override to 0.
+    heaterValues->outputToDevice = 0;
+
+    //manage buffering the error codes
+    if (!errorCodes[1].buffered) {
+      errorCodes[1].buffered = true;
+      errorBuffer += newError;
+      errorBuffer += " Glass thermistor disconected. Output shut off.";
+    }
+    
+  } else {
+    //since each error is now handled as it's own array, there needs to be a mechanism to reset or turn off errorcodes
+    if (errorCodes[1].active) {
+      //reset error1
+      errorCodes[1].active = false;  
+      errorCodes[1].buffered = false;
+    }
+  }
+
   
-  else if (_glassTemp >= _maxGlassTemp) 
+  //ERROR2: Over-temperature
+  if (lidTemperature->value >= lidTemperature->upperLimit) 
   {
     newError = 2;
     // Gently throttle back the power output to reduce temperature
     // While too high output will halve recursively - eventually to 0
-    _heaterOutput = PWMOutputIfError;
-    if (!isErrorBuffered)
-    {
-      isErrorBuffered = true;
-      _errorBuffer += newError;
-      _errorBuffer += " Glass >= max temp. Throttling output to ";
-      _errorBuffer += String(PWMOutputIfError, 0);
+    heaterValues->outputToDevice = heaterValues->errorOutput;
+
+    if (!errorCodes[2].active) {
+      errorCodes[2].active = true;
+      errorCodes[2].startTimer = millis();
     }
-    _errorCodesActive[1]= true;
+    
+    //manage buffering the error codes
+    if (!errorCodes[2].buffered) {
+      errorCodes[2].buffered = true;
+      errorBuffer += newError;
+      errorBuffer += " Glass >= max temp. Throttling output to ";
+      errorBuffer += String(heaterValues->errorOutput, 0);
+    }
+
+  } else {
+    //reset error2
+    if (errorCodes[2].active) {
+      errorCodes[2].active = false;
+      errorCodes[2].buffered = false;
+    }
   }
 
-  // Thermal run away. Getting hotter than setpoint and beyond minor overshoot      
+  // ERROR3: Thermal run away. Getting hotter than setpoint and beyond minor overshoot      
   // Do not trigger error if the program is just starting back up after a reset, as the glass will have cooled a bit.
-  else if (glassTempDiff > 4.0 && (millis() - startUpTime) > errorTime) 
-  {
-    if (!isErrorBuffered)
-    {
-      newError = 3;
-      errorCodePrevious = newError;
-      _errorBuffer += newError;
-      _errorBuffer += " Thermal runaway detected. Throttling output to ";			
-      _errorBuffer += String(PWMOutputIfError, 0);
+  // Also watch for climbing temperature (positivie slope) if thermal run away
+  if (glassTempDiff > 4.0 && (millis() - startUpTime) > errorCodes[3].gracePeriod && lidTemperature->slope[lidTemperature->index-1]>0.1)  {
+
+    newError = 3;
+
+    heaterValues->outputToDevice = heaterValues->errorOutput;
+    
+    if (!errorCodes[3].active) {
+      errorCodes[3].active = true;
+      errorCodes[3].startTimer = millis();
     }
-    _errorCodesActive[2]= true;
+    
+    if (!errorCodes[3].buffered) {
+      errorCodes[3].buffered = true;
+      errorBuffer += newError;
+      errorBuffer += " Thermal runaway detected. Throttling output to ";      
+      errorBuffer += String(heaterValues->errorOutput, 0);
+    }
+    
+  } else {
+    //reset error3
+    if (errorCodes[3].active) {
+      errorCodes[3].active = false;
+      errorCodes[3].buffered = false;
+    }
   }
   
-  else if (isHistoryArraysFilled) 
-  {
+  if (lidTemperature->historyFilled) {
 
     // Check if current power has led to stable temp below set point
     // If temp not reaching desired setpoint and slope is relatively flat, assume power is insufficient to reach setpoint
@@ -144,40 +204,56 @@ errorCheck::update() {
     // When off, falling from 35C in ambient temp, goes to ~ -1C/min
     // Do not trigger when just starting up because the slope may be <-1, then power comes on and slope transits through 0. 
     
-    if (glassTempDiff < -0.5 && _glassTemperatureSlope < 0.5 && _glassTemperatureSlope > -1 && (millis() - startUpTime) > _errorGraceTime) 
+    if (glassTempDiff < -0.5 && lidTemperature->slope[lidTemperature->index-1] < 0.5 && lidTemperature->slope[lidTemperature->index-1] > -1 && (millis() - startUpTime) > errorCodes[4].gracePeriod) 
     {
-      if (!isErrorBuffered)
-      {
-        newError = 4;
-        _errorBuffer += newError;
-  	    _errorBuffer += " Under-powered. Increase max output.";
+
+      newError = 4;
+  
+      if (!errorCodes[4].active) {
+        errorCodes[4].active = true;
+        errorCodes[4].startTimer = millis();
       }
-      _errorCodesActive[3]= true;
+      
+      if (!errorCodes[4].buffered) {
+        errorCodes[4].buffered = true;
+        errorBuffer += newError;
+        errorBuffer += " Under-powered. Increase max output.";      
+      }
+
+      
+    } else {
+      //reset error3
+      if (errorCodes[4].active) {
+        errorCodes[4].active = false;
+        errorCodes[4].buffered = false;
+      }      
     }
 
     // Heater failure: temperature falling unexpectedly. Assume power not getting to the heating elements
     // Allow  period if system re-booting and below set point with transiently falling temp
-    else if (glassTempDiff < -0.5 && _glassTemperatureSlope <= -1 && (millis() - startUpTime) > _errorGraceTime)  
-    {
-      if (!isErrorBuffered)
-      {
-        newError = 5;
-        PWMOutput = 0;
-  	    _errorBuffer += newError;
-  	    _errorBuffer += " Heater failure. Output - off.";
-        _errorCodesActive[4]= true;
+    if (glassTempDiff < -0.5 && lidTemperature->slope[lidTemperature->index-1] <= -1 && (millis() - startUpTime) > errorCodes[5].gracePeriod)  {
+
+      newError = 5;
+      heaterValues->outputToDevice = 0;
+      
+      if (!errorCodes[5].active) {
+        errorCodes[5].active = true;
+        errorCodes[5].startTimer = millis();
       }
+      
+      if (!errorCodes[5].buffered) {
+        errorCodes[5].buffered = true;
+        errorBuffer += newError;
+        errorBuffer += " Heater failure. Output - off.";      
+      }
+      
+    } else {
+      if (errorCodes[5].active) {
+        errorCodes[5].active = false;
+        errorCodes[5].buffered = false;
+      }   
     }
-    else 
-    {
-      _errorBuffer += newError;
-    }
-  }
-	else 
-  {
-      _errorBuffer += newError;
-  }
-  
-  *thisErrorCode = newErrorCode;
     
+  } // if lidTemperature->historyFilled
+     
 }

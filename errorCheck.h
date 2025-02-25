@@ -3,8 +3,12 @@
 #include "Arduino.h"
 #include "structures.h"
 
-//place variables and functions names here
+//The errorCodes array will be global using the extern declaration. It is compiled and memory allocated before classes or constructors
+const int numberOfErrorCodes = 6;
 
+extern errorCode errorCodes[numberOfErrorCodes]; 
+
+//place variables and functions names here
 class errorCheck {
 
   //Functions
@@ -12,33 +16,37 @@ class errorCheck {
   //double& PWMOutputIfError, double& glassTemperatureSlope) 
   // collapse heater and thermistor values in structures to be passed
 
-  //need to pass the lidPID structure, the lid structure, and msgBuffer
-  
-  //errorCheck(String& aBuffer, errorCode& someCode, double& glassTemp, double& maxGlasTemp, double& glassSetPt, char& errorMessage,double& heaterOutput, double& lastHeaterOutput, double& PWMOutputIfError, double& glassTemperatureSlope);
-  errorCheck(String& aBuffer,char& errorMessage ,generalSensor& alidTemperature, PIDextras& aheaterValues);
-
-  void graceTime(double); 
-  
-  void errorTimeOut(int,double);
-  
-  void update();
-
   public:
+  
+    //need to pass the lidPID structure, the lid structure, and msgBuffer
+    errorCheck(String& amsgBuffer,String& aerrorBuffer ,generalSensor& alidTemperature, PIDextras& aheaterValues, long& astartUpTime);
+    
     //these public variables should be accessible to the sketch as 
     int errorCode;
     int errorCodePrevious;
-    extern errorCode errorCodes[numberOfErrorCodes]; 
+
+    void begin();
+  
+    void graceTime(int, double); 
+    
+    void timeOut(int,double);
+  
+    void silence(int,double);
+    
+    void update();
+
     
   private:
     
-    String* _errorBuffer;
-    char* _errorMessage;
-    int _newErrorCode;
+    String& errorBuffer;
+    String& msgBuffer;
+    long& startUpTime;
+    int newError;
+    
     generalSensor* lidTemperature;
     PIDextras* heaterValues;
     
-  
-  void setSampleTime(int);
+    void setSampleTime(int);
 
 
 }; //close heaterStatus class

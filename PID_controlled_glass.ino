@@ -19,6 +19,7 @@
 #include "STEINHART.h"
 #include "structures.h"
 #include "errorCheck.h"
+#include "parseSerial.h"
 
 // *************************************************************************************************************************************
 // PINS
@@ -33,13 +34,6 @@
 // Thermistor 2 pin
 #define THERMISTOR2PIN A4
   
-// Initialize errorCheck library
-errorCheck ErrorCheck; 
-
-//Initialize serialMsg
-serialMsg serialMain(23);
-
-
 /* General approach to temperature control:
  *  1. temperature readings are stored in generalSensor structures - named as objectTemperature
  *  2. thermistor hardware and cummulitive deviations values are stored in thermistor structures - named as objectThermistor
@@ -57,8 +51,8 @@ serialMsg serialMain(23);
 //  enclosureTemperature.prevValue = 22.0;//this will be set after the first call to updateSensor();
 
   //PIDextra(double aP, double aI, double aD, double aSetpoint, double amaxOutputNormal,double amaxOutputHigh, double errorOutput int aMode)
-PIDextras heaterValues{2, 96, 21, lidTemperature.setpoint, 40,45,10);
-
+  //PIDextras heaterValues(2, 96, 21, lidTemperature.setpoint, 40,45,10);
+  PIDextras heaterValues(2.0, 96.0, 21.0, lidTemperature.setpoint, 40.0,45.0,10.0,1);
 // Set glass temperature goal (in degrees Celsius)
 //double glassSetpoint = 55.0; //need to figure out how to reference this to the thermistor setpoint in the new structure
 
@@ -77,8 +71,6 @@ PIDextras heaterValues{2, 96, 21, lidTemperature.setpoint, 40,45,10);
 //  automaticPIDMode
 //};
 //enumPIDMode PIDMode;
-  
-
 
 // Check if output has changed since last loop
 //bool isNewPID = false; - replaced by  lidPD.newValue to be ready for the inclusion of a CO2 PID controller
@@ -100,7 +92,6 @@ PIDextras heaterValues{2, 96, 21, lidTemperature.setpoint, 40,45,10);
 //int maxGlassAutoIncrease = 5;
 //double autoGlassSetpointChange = 0;
 
-
 // Distance from the setpoint where PID should start computing
 //const double gapFromSetpointWherePIDStarts = 1.5;
 
@@ -114,13 +105,18 @@ PIDextras heaterValues{2, 96, 21, lidTemperature.setpoint, 40,45,10);
 // Set current maximum output to pulse-width modulator to the conservative limit initially
 //double currentMaximumPIDOutput = maximumConservativePIDOutput;
 
+//*** errorCodes Currently declared in errorCheck.h as extern and defined in errorCheck.cpp
 //Initiate structure holding error codes
-const itn nErrorCodes = 6;
-double errorGraceTime = 180000; //in ms
-String codeNames = {"OK","no thermistor","over temperature","Thermal runaway","Under powered","Heater failure"};
-errorCode errorCodes[nErrorCodes]; //error codes now held in a structure that can be passed to errorCheck
-String errorBuffer,  msgBuffer, logBuffer;
-long startUpTime;
+//const itn nErrorCodes = 6;
+//double errorGraceTime = 180000; //in ms
+//String codeNames = {"OK","no thermistor","over temperature","Thermal runaway","Under powered","Heater failure"};
+//errorCode errorCodes[nErrorCodes]; //error codes now held in a structure that can be passed to errorCheck
+
+String errorBuffer;
+String msgBuffer;
+String logBuffer;
+
+long startUpTime = millis();
 
 
 // *************************************************************************************************************************************
@@ -132,7 +128,7 @@ long startUpTime;
 
 //thermistor type should mostly refer to the hardware aspects of a thermistor rather than it's measurements.
 //instantiate as thermistor(String thisName, byte thisPin, double thisrNominal = 10000, double thisrSeries = 9985, double thistNominal = 25.0, double thisCoef = 3435) 
-thermistor lidThermistor("lid thermistor", THERMISTOR2PIN,);
+thermistor lidThermistor("lid thermistor", THERMISTOR1PIN);
 thermistor enclosureThermistor("enclosure thermistor",THERMISTOR2PIN);
 
 //!!!! These values are now associated with the thermistor structures
@@ -157,11 +153,11 @@ const double resistor2Coefficient = 983;
 // PULSE-WIDTH MODULATION VARIABLES
 // *************************************************************************************************************************************
 
-heater lidHeater;
+//I believe this is now ready to be depracated. 
+//heater lidHeater; //structure holding current, and previous output to heater
 
 // Pulse-width modulator output value needed to change glass temperature
 //double PWMOutput = 0.0; // now in heaterValues strucutre
-
 
 // Last pulse-width modulator output value
 //double PWMOutputLast = 0.0; // now in heaterValues strucutre
@@ -191,7 +187,6 @@ int glassVoltageReadingInterval = 2000;
 //double glassTemperatureSlope = 0.0;
 //double enclosureTemperature.valueSlope = 0.0;
 
-
 // Variable to store air temperature
 //double enclosureTemperature.value = 20.0; //enclosure
 
@@ -208,22 +203,22 @@ int glassVoltageReadingInterval = 2000;
 //double enclosureTemperature.valueSetpoint = 37.0;
 
 // Allowable difference betwee Air temperature and enclosureTemperature.valueSetpoint
-double enclosureTemperature.valueTolerance = 0.1;
+//double enclosureTemperature.valueTolerance = 0.1;
 
 // Boolean to check if the air temperature setpoint has been reached
-bool isAirTemperatureSetpointReached = false;
+//bool isAirTemperatureSetpointReached = false;
 
 // Boolean to check if the air temperature setpoint has been noted
-bool isAirTemperatureSetpointNoted = false;
+//bool isAirTemperatureSetpointNoted = false;
 
 // yes if Air temperature < enclosureTemperature.valueSetpoint and reassessed at start-up and changes of enclosureTemperature.valueSetpoint
-bool isAirTemperatureClimbing = true;
+//bool isAirTemperatureClimbing = true;
 
 // Size of arrays used for logging temperature and temperature error
 //const int historyArraysSize = 60; // now in structure library
 
 // Variable to store a counter for the index of the temperature and temperature error arrays
-int historyArraysIndex = 0;
+//int historyArraysIndex = 0;
 
 // Variable to store when the index of the temperature and temperature error arrays ends
 //int endHistoryArraysIndex = 0;
@@ -238,33 +233,36 @@ int historyArraysIndex = 0;
 //double enclosureTemperature.valueHistory[historyArraysSize];
 
 // Array to store mean square error of glass temperature
-double mseGlassTemperatureHistory[historyArraysSize];
+//double mseGlassTemperatureHistory[historyArraysSize];
 
 // Variable to store the mean square error of the glass temperature
-double mseGlassTemperature = 0.0;
+//double mseGlassTemperature = 0.0;
 
 // Boolean to check whether or not there is a new glass temperature
-bool isNewGlassTemperature = false;
+//bool isNewGlassTemperature = false; // - call to Steinhardt is a boolean 
 
 // Boolean to check whether or not there is a new air temperature
-bool isNewsAirTemperature = false;
+//bool isNewsAirTemperature = false;
 
 
 // *************************************************************************************************************************************
 // SERIAL VARIABLES
 // *************************************************************************************************************************************
 
+//Initialize serialMsg
+serialMsg serialMain(23); //hold buffer and variables related to serial monitor messages
+
 // Maximum message length for serial communication (in characters)
-const int serialMaxMessageLength = 12;
+//const int serialMaxMessageLength = 12;
 
 // Character that will signal end of message from the PC
-char endSerialMessageCharacter = '.';
+//char endSerialMessageCharacter = '.';
 
 // Array for serial communication, of length determined by max message length variable
-char incomingSerial[serialMaxMessageLength];
+//char incomingSerial[serialMaxMessageLength];
 
 // Variable to store message length
-int lengthOfSerialMessage = 0;
+//int lengthOfSerialMessage = 0;
 
 // How long to wait before displaying information on the serial
 int serialDisplayInterval = 2000;
@@ -298,15 +296,20 @@ uint16_t nLogged = 0;
 // Create thermistor object, including relevant information about the thermistor and the required constants for the Steinhart equation
 //STEINHART steinhardt1(THERMISTOR1PIN, &glassTemperature, nominalResistance, nominalTemperature, bCoefficient, seriesResistance);
 //STEINHART steinhardt2(THERMISTOR2PIN, &enclosureTemperature.value, nominalResistance, nominalTemperature, bCoefficient, seriesResistance);
-//%%%% In theory, now we should simple be able to pass each thermistor structure to the steinhard function, though this is less simple for others to reproduce
 STEINHART steinhardt1(lidThermistor.pin, &lidTemperature.value, lidThermistor.rNominal, lidThermistor.tNominal, lidThermistor.bCoefficient, lidThermistor.rSeries);
-STEINHART steinhardt2(enclosureTemperature.pin, &enclosureTemperature.value, enclosureTemperature.rNominal, enclosureTemperature.tNominal, enclosureTemperature.bCoefficient, enclosureTemperature.rSeries);
+STEINHART steinhardt2(enclosureThermistor.pin, &enclosureTemperature.value, enclosureThermistor.rNominal, enclosureThermistor.tNominal, enclosureThermistor.bCoefficient, enclosureThermistor.rSeries);
 
 // Create PID controller for the glass, including relevant information for the PID such as input, output, setpoint, and constants
 //PID heaterPID(&lidTemperature.value, &PIDOutput, &glassSetpoint, PIDKp, PIDKi, PIDKd, DIRECT);
-PID heaterPID(&lidTemperature.value, &heaterValues->outputFromPID, &lidTemperature.setpoint, heaterValues->P, heaterValues->I, heaterValues->D, DIRECT);
+PID heaterPID(&lidTemperature.value, &heaterValues.outputFromPID, &lidTemperature.setpoint, heaterValues.P, heaterValues.I, heaterValues.D, DIRECT);
 
-errorCheck errorCheck(&errorCodes, &lid, &errorBuffer, &msgBuffer);
+//instantiate the errorCheck library with references to needed variables. Note that errorCodes is a global variable, so does not need to be transfered.
+
+//250224 - I am not convinced that errorCheck and parseSerial instantiation don't need to be references
+
+errorCheck errorCheck(msgBuffer,errorBuffer, lidTemperature, heaterValues, startUpTime);
+
+parseSerial parseSerial(serialMain, heaterPID, heaterValues, msgBuffer, lidTemperature, enclosureTemperature);
 
 // *************************************************************************************************************************************
 // SETUP
@@ -325,24 +328,25 @@ void setup()
   // Initialize communication with I2C devices
   Wire.begin();
 
-  //this needs to be done in setup, not prior to
-  for (i=0 ; i < nErrorCodes; i++) {
-    errorCodes[i].ID = i;
-    name = codeNames[i];
-    active = false;
-    startTime = 0;
-    graceTime = errorGraceTime;
-    silenced = false;
-    sleepTime = 180000;
-    buffered = false;
-    userOverride = false;
-  }
-
+  errorCheck.begin();
 
   // Initialize buffers
   errorBuffer.reserve(256);
   msgBuffer.reserve(128);
   logBuffer.reserve(512);
+  
+  //this needs to be done in setup, not prior to >>>>>>> Now done in errorCheck.cpp
+//  for (i=0 ; i < nErrorCodes; i++) {
+//    errorCodes[i].ID = i;
+//    name = codeNames[i];
+//    active = false;
+//    startTime = 0;
+//    graceTime = errorGraceTime;
+//    silenced = false;
+//    sleepTime = 180000;
+//    buffered = false;
+//    userOverride = false;
+//  }
  
   // Initialize PID (automaticPIDMode mode)
   //PIDMode = automaticPIDMode;
@@ -352,7 +356,7 @@ void setup()
   //PIDSetpoint = glassSetpoint;   //vestigial, not longer used
 
   // Set up PID output limits  
-  heaterPID.SetOutputLimits(0, heaterValues->maxOutputHigh); 
+  heaterPID.SetOutputLimits(0, heaterValues.maxOutputHigh); 
   heaterPID.SetSampleTime(glassVoltageReadingInterval); 
 
   // Set frequency of voltage readings for thermistor 1
@@ -363,7 +367,7 @@ void setup()
 
   // Repeat for thermistor 2
   steinhardt2.setSampleTime(glassVoltageReadingInterval);
-  isNewsAirTemperature = steinhardt2.read();
+  //isNewsAirTemperature = steinhardt2.read();
   enclosureTemperature.prevValue = enclosureTemperature.value;
   //enclosureTemperature.prev2Temperature = enclosureTemperature.value; //deprecated 250123
   //oldestAirTemperature = enclosureTemperature.value;
@@ -391,9 +395,7 @@ void loop()
 {
 
   // Call STEINHART library, check if value is updated  
-  //isNewGlassTemperature = steinhardt1.read();
-
-//...since steinhardt.read() is a bool, we would be able to simple use
+  //isNewGlassTemperature = steinhardt1.read();  //...since steinhardt.read() is a bool, we can simple use the function call as the logical test
   if (steinhardt1.read()==true) // this should both take a reading and service as the logical test.
   // Add the new temp reading to the history array if a new value is available
   //if (isNewGlassTemperature) 
@@ -452,33 +454,33 @@ void loop()
     */
     
     // If glass temperature is far from the setpoint, set the maximum PID output to a pre-determined aggressive value
-    if ( (lidTemperature.setpoint - lidTemperature.value) >  heaterValues->deltaForMax )
+    if ( (lidTemperature.setpoint - lidTemperature.value) >  heaterValues.deltaForMax )
     {
       // If the current maximum PID output is not already set to aggressive, set it to aggressive and print a message to the serial
-      if (heaterValues->maxOutputCurrent != heaterValues->maxOutputHigh) 
+      if (heaterValues.maxOutputCurrent != heaterValues.maxOutputHigh) 
       {
         // Set the current PID output to aggressive
-        heaterValues->maxOutputCurrent = heaterValues->maxOutputHigh;
-        heaterPID.SetOutputLimits(0, heaterValues->maxOutputCurrent);
+        heaterValues.maxOutputCurrent = heaterValues.maxOutputHigh;
+        heaterPID.SetOutputLimits(0, heaterValues.maxOutputCurrent);
 
         // Print a message to the serial
-        msgBuffer += " Switching to heaterValues->maxOutputCurrent_";
-	      msgBuffer += String(heaterValues->maxOutputCurrent);
+        msgBuffer += " Switching to heaterValues.maxOutputCurrent_";
+	      msgBuffer += String(heaterValues.maxOutputCurrent);
       } 
     }
     // If the glass temperature is close to the setpoint, set the maximum PID output to a pre-determined conservative value 
     else 
     {
       // If the current maximum PID output is not already set to conservative, set it to conservative and print a message to the serial
-      if (heaterValues->maxOutputCurrent != heaterValues->maxOutputNormal) 
+      if (heaterValues.maxOutputCurrent != heaterValues.maxOutputNormal) 
       {
         // Set the current PID output to conservative
-        heaterValues->maxOutputCurrent = heaterValues->maxOutputNormal;
-        heaterPID.SetOutputLimits(0, heaterValues->maxOutputCurrent);
+        heaterValues.maxOutputCurrent = heaterValues.maxOutputNormal;
+        heaterPID.SetOutputLimits(0, heaterValues.maxOutputCurrent);
 
         // Print a message to the serial
-        msgBuffer += " Switch to heaterValues->maxOutputNormal_";
-	      msgBuffer += String(heaterValues->maxOutputCurrent);
+        msgBuffer += " Switch to heaterValues.maxOutputNormal_";
+	      msgBuffer += String(heaterValues.maxOutputCurrent);
       }
     }
   }
@@ -493,11 +495,13 @@ void loop()
     //if (heaterValues->newValue == true) 
     if (heaterPID.Compute() == true) 
     {
-    	heaterValues->outputToDevice = heaterValues->outputFromPID; // handoff the PID's intended output to the heater structure
+    	heaterValues.outputToDevice = heaterValues.outputFromPID;
+    	// handoff the PID's intended output to the heater structure
     	// Perform a series of tests on thermistor reading and temperature vs. setpoint and over time
 
      //error check will likely neeed a bunch of structures passed to it: buffers, lidTemperature, enclosureTemperature, CO2 eventually, heaterValues
-      ErrorCheck(errorCode);
+     errorCheck.update();
+     
     } 
   }
 
@@ -516,7 +520,9 @@ void loop()
     //if setpoint reached.
     if (enclosureTemperature.value >= enclosureTemperature.setpoint)
     {
-      if (enclosure.setpointReached = false) enclosure.setpointReached = true;
+      if (enclosureTemperature.setpointReached = false) {
+        enclosureTemperature.setpointReached = true;
+      }
       if (enclosureTemperature.setpointNoted == false) {
         msgBuffer += " air temperature set point reached"; 
         enclosureTemperature.setpointNoted = true;
@@ -530,7 +536,9 @@ void loop()
     //assume air temp needs to fall to reach set point
     if (enclosureTemperature.value <= enclosureTemperature.setpoint)
     {
-      if (enclosure.setpointReached = false) enclosure.setpointReached = true;
+      if (enclosureTemperature.setpointReached = false) {
+        enclosureTemperature.setpointReached = true;
+      }
       if (enclosureTemperature.setpointNoted == false) {
         msgBuffer += " air temperature set point reached"; 
         enclosureTemperature.setpointNoted = true;
@@ -539,19 +547,19 @@ void loop()
   }
   
   // Check to see if the glass setpoint needs to be updated, only if enclosureTemperature.valueSetpointReached is true
-  if (enclosure.setpointReached)
+  if (enclosureTemperature.setpointReached)
   {
     CheckGlassSetpoint();
   }
 	
   // If the output from the PID is different from the previous output, adjust the pulse-width modulator duty cycle
-  if (heaterValues->outputToDevice!= heaterValues->prevOutput) 
+  if (heaterValues.outputToDevice!= heaterValues.prevOutput) 
   {
     // Adjust the duty cycle of the PWM pin connected to the MOSFET fron the PID output if the value has changed
-    analogWrite(PWMPINOUT, heaterValues->outputToDevice);
+    analogWrite(PWMPINOUT, heaterValues.outputToDevice);
 
     // Log the new output value as the last output value received
-    heaterValues->prevOutput = heaterValues->outputToDevice;
+    heaterValues.prevOutput = heaterValues.outputToDevice;
   }
 
   // Set the current time to the number of milliseconds the Arduino has been powered up for
@@ -632,7 +640,7 @@ void loop()
 //since glass and air temp are logged in history indices, we could just skip this and pull the values from arrays when needed
   // Set the previousGlassTemperature value to the current glass temperature
   //  previousGlassTemperature = glassTemperature;
-  lidThermistor.prevTemperature = lidTemperature.value;
+  lidTemperature.prevValue = lidTemperature.value;
   // Set the previousAirTemperature value to the current air temperature
   //previousAirTemperature = enclosureTemperature.value;
   //enclosureTemperature.prev2Temperature = enclosureTemperature.prevValue; //Deprecated - need to ref enclosureTemperature.history
@@ -874,99 +882,101 @@ void GetBuckConverterVoltage(double &newVoltage)
 }
 
 //%%% to ErrorCheck library 
-void ErrorCheck(int &thisError)
-{
-  double lidTemperature.deviation = lidTemperature.value - lidTemperature.setpoint; // This was initially deltaFromSetPt and was never declared or set so I did that here
 
-  // Assume all is well
-  int newError = 0;
-  
-  // Check if thermistor is not connected. Temp will read as -273C
-  if (lidTemperature.value < 0) 
-  {
-    newError = 1;
-    // Assume PID will be full throttle. Override to 0.
-    PWMOutput = 0;
-    if (!isErrorBuffered)
-    {
-      isErrorBuffered = true;
-      errorBuffer += newError;
-      errorBuffer += " Glass thermistor disconected. Output shut off.";
-    }
-  } 
+//void ErrorCheck(int &thisError)
+//{
+//  double lidTemperature.deviation = lidTemperature.value - lidTemperature.setpoint; // This was initially deltaFromSetPt and was never declared or set so I did that here
+//
+//  // Assume all is well
+//  int newError = 0;
+//  
+//  // Check if thermistor is not connected. Temp will read as -273C
+//  if (lidTemperature.value < 0) 
+//  {
+//    newError = 1;
+//    // Assume PID will be full throttle. Override to 0.
+//    PWMOutput = 0;
+//    if (!isErrorBuffered)
+//    {
+//      isErrorBuffered = true;
+//      errorBuffer += newError;
+//      errorBuffer += " Glass thermistor disconected. Output shut off.";
+//    }
+//  } 
+//
+//  
+//  else if (lidTemperature.value >= lidTemperature.upperLimit) 
+//  {
+//    newError = 2;
+//    // Gently throttle back the power output to reduce temperature
+//    // While too high output will halve recursively - eventually to 0
+//    PWMOutput = heaterValues->errorOutput;
+//    if (!isErrorBuffered)
+//    {
+//      isErrorBuffered = true;
+//      errorBuffer += newError;
+//      errorBuffer += " Glass >= max temp. Throttling output to ";
+//      errorBuffer += String(heaterValues->errorOutput, 0);
+//    }
+//  }
+//
+//  // Thermal run away. Getting hotter than setpoint and beyond minor overshoot      
+//  // Do not trigger error if the program is just starting back up after a reset, as the glass will have cooled a bit.
+//  else if (lidTemperature.deviation > 4.0 && (millis() - startUpTime) > errorGraceTime) 
+//  {
+//    if (!isErrorBuffered)
+//    {
+//      newError = 3;
+//      errorCodePrevious = newError;
+//      errorBuffer += newError;
+//      errorBuffer += " Thermal runaway detected. Throttling output to ";			
+//      errorBuffer += String(heaterValues->errorOutput, 0);
+//    }
+//  }
+//  
+//  else if (lidTemperature.historyFilled) 
+//  {
+//
+//    // Slope (over 50 samples) when ramping up can be >11 C/min 
+//    // When stable, always within +/-0.7C/min
+//    // When off, falling from 35C in ambient temp, goes to ~ -1C/min
+////%%% Issue to address. How to avoid this error being thrown if system shuts off, slope<-1, then power comes on and slope transits through 0. 
+//    // If temp not reaching desired setpoint and slope is relatively flat, assume power is insufficient to reach setpoint
+//    if (lidTemperature.deviation < -1.0 && lidTemperature.slope[lidTemperature.index-1] < 0.5 && lidTemperature.slope[lidTemperature.index-1] > -1) 
+//    {
+//      if (!isErrorBuffered)
+//      {
+//        newError = 4;
+//        errorBuffer += newError;
+//  	    errorBuffer += " Under-powered. Increase max output.";
+//      }
+//    }
+//
+//    // Heater failure: temperature falling unexpectedly. Assume power not getting to the heating elements
+//    else if (lidTemperature.deviation < -0.5 && lidTemperature.slope[lidTemperature.index-1] <= -1 && (millis() - lidTemperature.setpointLastUpdate) >= lidTemperature.setpointInterval/2) 
+//  //%%%need some additional metric to indicate that glass temp is not simply descreasing to a new set point, then some delay to account for stabilization
+//    {
+//      if (!isErrorBuffered)
+//      {
+//        newError = 5;
+//        PWMOutput = 0;
+//  	    errorBuffer += newError;
+//  	    errorBuffer += " Heater failure. Output - off.";
+//      }
+//    
+//    else 
+//    {
+//      errorBuffer += newError;
+//    }
+//  }
+//	else 
+//  {
+//      errorBuffer += newError;
+//  }
+//
+//  thisError = newError;
+//}
 
-  
-  else if (lidTemperature.value >= lidTemperature.upperLimit) 
-  {
-    newError = 2;
-    // Gently throttle back the power output to reduce temperature
-    // While too high output will halve recursively - eventually to 0
-    PWMOutput = heaterValues->errorOutput;
-    if (!isErrorBuffered)
-    {
-      isErrorBuffered = true;
-      errorBuffer += newError;
-      errorBuffer += " Glass >= max temp. Throttling output to ";
-      errorBuffer += String(heaterValues->errorOutput, 0);
-    }
-  }
-
-  // Thermal run away. Getting hotter than setpoint and beyond minor overshoot      
-  // Do not trigger error if the program is just starting back up after a reset, as the glass will have cooled a bit.
-  else if (lidTemperature.deviation > 4.0 && (millis() - startUpTime) > errorGraceTime) 
-  {
-    if (!isErrorBuffered)
-    {
-      newError = 3;
-      errorCodePrevious = newError;
-      errorBuffer += newError;
-      errorBuffer += " Thermal runaway detected. Throttling output to ";			
-      errorBuffer += String(heaterValues->errorOutput, 0);
-    }
-  }
-  
-  else if (lidTemperature.historyFilled) 
-  {
-
-    // Slope (over 50 samples) when ramping up can be >11 C/min 
-    // When stable, always within +/-0.7C/min
-    // When off, falling from 35C in ambient temp, goes to ~ -1C/min
-//%%% Issue to address. How to avoid this error being thrown if system shuts off, slope<-1, then power comes on and slope transits through 0. 
-    // If temp not reaching desired setpoint and slope is relatively flat, assume power is insufficient to reach setpoint
-    if (lidTemperature.deviation < -1.0 && lidTemperature.slope[lidTemperature.index-1] < 0.5 && lidTemperature.slope[lidTemperature.index-1] > -1) 
-    {
-      if (!isErrorBuffered)
-      {
-        newError = 4;
-        errorBuffer += newError;
-  	    errorBuffer += " Under-powered. Increase max output.";
-      }
-    }
-
-    // Heater failure: temperature falling unexpectedly. Assume power not getting to the heating elements
-    else if (lidTemperature.deviation < -0.5 && lidTemperature.slope[lidTemperature.index-1] <= -1 && (millis() - lidTemperature.setpointLastUpdate) >= lidTemperature.setpointInterval/2) 
-  //%%%need some additional metric to indicate that glass temp is not simply descreasing to a new set point, then some delay to account for stabilization
-    {
-      if (!isErrorBuffered)
-      {
-        newError = 5;
-        PWMOutput = 0;
-  	    errorBuffer += newError;
-  	    errorBuffer += " Heater failure. Output - off.";
-      }
-    }
-    else 
-    {
-      errorBuffer += newError;
-    }
-  }
-	else 
-  {
-      errorBuffer += newError;
-  }
-
-  thisError = newError;
-}
 
 //deprecated and replaced by updateSensor
 /*
@@ -1011,17 +1021,14 @@ void GetArrayAverage(double thisArray[], double &average)
 }
 */
 
-// Print the buck converter voltage to the serial, pass in the buck converter voltage
+// Print all relevant values to serial
+// Eventually this will need to merge with logToSD.cpp in IncuStage
 void PrintParametersToSerial()
 {
-  // Getting set up to us buffer to merge data with error codes and event logs
-  // Need to recall/check syntax for float values with sprintf
-  // char logString[];
-  // sprintf(logString,"V(in):24.54  T(enclosure):33.36  T(glass):66.11  T(slope):0.04 T(mse):0.047  PWMOut:0.00 PIDKp:1.00  PIDKi:96.00 PIDKd:21.00 PIDmode:1 setPt(glass):66.00"
 
   if (nLogged == 0) {
     Serial.println(" ");
-    logBuffer += "\tT(enclosure):\tT(lid):\tT(encl.slope):\tT(lidThermistor.slope):\tT(mse):\tsetPt(lid):\tsetPt(enclosure):\tPWMOut:\tV(in):\tPID:\tError:\tMsg:";
+    logBuffer += "\tT(enclosure):\tT(lid):\tT(encl.slope):\tT(lidTemperature.slope):\tT(mse):\tsetPt(lid):\tsetPt(enclosure):\tPWMOut:\tV(in):\tPID:\tError:\tMsg:";
     Serial.println(logBuffer);
     logBuffer = "";
   }
@@ -1032,25 +1039,25 @@ void PrintParametersToSerial()
   logBuffer += "\t";
   logBuffer += String(lidTemperature.value, 2);
   logBuffer += "\t";
-  logBuffer += String(enclosureTemperature.slope, 2);
+  logBuffer += String(enclosureTemperature.slope[enclosureTemperature.index-1], 2);
   logBuffer += "\t";
-  logBuffer += String(lidThermistor.slope, 2);
+  logBuffer += String(lidTemperature.slope[lidTemperature.index-1], 2);
   logBuffer += "\t";
-  logBuffer += String(mseGlassTemperature, 3);
+  logBuffer += String(lidTemperature.meanSquareError, 3);
   logBuffer += "\t";
-  logBuffer += String(lidThermistor.setpoint, 2);
+  logBuffer += String(lidTemperature.setpoint, 2);
   logBuffer += "\t";
   logBuffer += String(enclosureTemperature.setpoint, 1);
   logBuffer += "\t";
-  logBuffer += String(heaterValues->outputToDevice);
+  logBuffer += String(heaterValues.outputToDevice);
   logBuffer += "\t";
   logBuffer += String(buckConverterVoltage, 2);
   logBuffer += "\t";
-  logBuffer += String(heaterValues->P);
+  logBuffer += String(heaterValues.P);
   logBuffer += "/";
-  logBuffer += String(heaterValues->I);
+  logBuffer += String(heaterValues.I);
   logBuffer += "/";
-  logBuffer += String(heaterValues->D);
+  logBuffer += String(heaterValues.D);
   logBuffer += "\t";
   logBuffer += errorBuffer;
   logBuffer += "\t";
@@ -1060,7 +1067,10 @@ void PrintParametersToSerial()
   logBuffer = "";
   msgBuffer = " ";
   errorBuffer = " ";
-  isErrorBuffered = false;
+  //isErrorBuffered = false;
+  // for (int i = 0; i < numberOfErrorCodes; i++) {
+  //  errorCodes.buffered[i] = false;
+  //}
 
   nLogged++;
 }
@@ -1115,7 +1125,7 @@ void CheckGlassSetpoint()
       
       // if the delta is positive, limit the total possible increase to 5C. The user can reset this by manually increasing the set point.
       //The should limit overshoot in the automatic increases in glass set point
-      if (lidThermistor.autoSetpointChangea>0 && lidThermistor.cummSetpointChange >= lidThermistor.maxAutoIncrease) {
+      if (lidThermistor.autoSetpointChange>0 && lidThermistor.cummSetpointChange >= lidThermistor.maxAutoIncrease) {
         lidThermistor.cummSetpointChange = lidThermistor.maxAutoIncrease;
         lidThermistor.autoSetpointChange = 0;
       }
@@ -1145,11 +1155,11 @@ void RemoveErroneousSensorReadings(generalSensor &sensor, double tolerance)
   //double glassTemperatureDataDifference = abs(lidTemperature.value - lidThermistor.prevTtemperature);
 
   //Since glassTemperatureHistory is a circular buffer, we access the values 1 and 2 indices before the current historyArraysIndex
-  if ( (sensor.historyFilled == true) && (sensor.history[(sensor.index-1)%sensor.size] != sensor.history[(sensor.index-1)%sensor.size]) )
+  if ( (sensor.historyFilled == true) && (sensor.history[(sensor.index-1)%sensor.historySize] != sensor.history[(sensor.index-1)%sensor.historySize]) )
   {
-    if ( (abs(sensor.value - sensor.history[(sensor.index-1)%sensor.size])>tolerance) && (abs(sensor.value - sensor.history[(sensor.index-2)%sensor.size])>tolerance) ) 
+    if ( (abs(sensor.value - sensor.history[(sensor.index-1)%sensor.historySize])>tolerance) && (abs(sensor.value - sensor.history[(sensor.index-2)%sensor.historySize])>tolerance) ) 
     {
-     sensor.value = sensor.history[(sensor.index-2)%sensor.size];
+     sensor.value = sensor.history[(sensor.index-2)%sensor.historySize];
       // Send a message to the serial
       msgBuffer += "Erroneous ";
       msgBuffer += sensor.name;
@@ -1198,18 +1208,45 @@ void sensorUpdate(generalSensor& sensor) {
   //determine slope and append to slope history
   if (sensor.historyFilled) {
     //determine slope
-    sensor.slope[sensor.index] = (sensor.value - sensor.history[(sensor.index - sensor.slopeInterval) % sensor.historySize]) / (sensor.slopeUnits * (sensor.time[sensor.index] - sensor.time[(sensor.index - sensor.slopeInterval) % sensor.historySize]))
+    sensor.slope[sensor.index] = (sensor.value - sensor.history[(sensor.index - sensor.slopeInterval) % sensor.historySize]) / 
+                                 (sensor.slopeUnits * (sensor.time[sensor.index] - sensor.time[(sensor.index - sensor.slopeInterval) % sensor.historySize]));
 
-    //calculate average over the history
-    float thisAvg = 0;
+    //calculate deviation squared for mse
+    sensor.errorHistory[sensor.index] = (sensor.value-sensor.setpoint)*(sensor.value-sensor.setpoint);
+
+    //calculate average and mean squared error over the history
+    sensor.average = 0;
+    sensor.meanSquareError = 0;
+    
     for (int i = 0; i < sensor.historySize; i++) {
-
-      thisAvg += sensor.history[i];
+      
+      sensor.average += sensor.history[i];
+      sensor.meanSquareError += sensor.errorHistory[i];
+      
     }
-    sensor.average = thisAvg / sensor.historySize;
+    
+    sensor.average /= sensor.historySize;
+    sensor.meanSquareError /= sensor.historySize;
+    
   } else {
+    //if history is not yet filled ....
+
       sensor.slope[sensor.index] = 0;
-      sensor.average = sensor.value;
+      sensor.meanSquareError = 0;
+      sensor.average = 0;
+      
+      if (sensor.index==0 ) {
+        sensor.errorHistory[sensor.index] = 0;
+      } else {
+        sensor.errorHistory[sensor.index] = (sensor.value-sensor.setpoint)*(sensor.value-sensor.setpoint);
+      }
+      
+      for (int i = 0; i < sensor.index; i++) {
+        sensor.average += sensor.history[i];
+        sensor.meanSquareError += sensor.errorHistory[i];
+      }
+      sensor.average /= (sensor.index+1);
+      sensor.meanSquareError /= (sensor.index+1);
   }
 
   sensor.index++;

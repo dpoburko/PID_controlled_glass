@@ -3,6 +3,60 @@
 
 #include "Arduino.h"
 
+// must be intialized with the maxlength (e.g. serialMsg serial(25);)
+struct serialMsg{
+  int size;
+  char* incoming; //dynamically assigned char array to hold the serial message
+  char end;
+  int ind;  //index
+  int length; //replaces lengthOfMessage
+
+  // Constructor to initialize size and allocate the array
+  serialMsg(int bufferSize): size(bufferSize), end('.'), ind(0), length(0) {
+
+      incoming = (char*)malloc(size * sizeof(char));  // Allocate memory dynamically
+
+      if (incoming != nullptr) {
+          memset(incoming, 0, size);  // Initialize buffer with null characters
+      } else {
+          Serial.println("Error: Memory allocation failed!");
+      }
+  }
+
+  // Function to assign a single character by index
+  void setCharAt(int index, char value) {
+      if (index >= 0 && index < size) {
+          incoming[index] = value;
+      } else {
+          Serial.println("Error: Index out of bounds!");
+      }
+  }
+
+  // Read a character at a specific index
+  //Note that values can be accessed directly as serialMsg.incoming[i], but this function adds out of bounds safety
+  char getCharAt(int index) {
+      if (index >= 0 && index < size) {
+          return incoming[index];  // ✅ Read character at index
+      } else {
+          Serial.println("Error: Index out of bounds!");
+          return '\0';  // Return a safe value
+      }
+  }
+
+  // Destructor to free the allocated memory
+  ~serialMsg() {
+        delete[] incoming;
+    }
+  /*
+   * In sketch:
+   * serialMsg srl(25);
+   * //Set characters by index
+   * srl.setCharAt(0,'H');
+   * get characters directly by index
+   * 3rdLetter = serial.incoming[2];
+   */
+    
+};
 
 const int historyArraySize = 60;
 
@@ -63,6 +117,7 @@ struct generalSensor {
     double maximum;
     double average; //averaged over history length
     double deviation; //difference from setPoint
+    double meanSquareError; // mse wrt set point
     int index;
     const int historySize;
     int setpointInterval = 150000;
@@ -73,6 +128,7 @@ struct generalSensor {
     double* history;
     double* slope;
     double* time;
+    double* errorHistory; //mean square error array
     
     // Constructor to initialize size and allocate the array for history
     generalSensor(int arraySize, String aName = "sensor", double initVal = 0.0, float initSP = 0.0, int initSI = 5, long initSU = 1000, 
@@ -82,6 +138,7 @@ struct generalSensor {
       history = new double[historySize];
       slope = new double[historySize];
       time = new double[historySize];
+      errorHistory = new double[historySize];
       setpointReached = false;
       setpointNoted = false; 
       historyFilled = false;
@@ -90,6 +147,7 @@ struct generalSensor {
       maximum = -1000000;
       average = 0.0;
       deviation = 0; 
+      meanSquareError = 0;
       index = 0;
     }  
 
@@ -97,6 +155,7 @@ struct generalSensor {
       delete[] history;
       delete[] slope;
       delete[] time;
+      delete[] errorHistory;
     }
     
   };
@@ -105,18 +164,21 @@ struct PIDextras {
   double P;
   double I;
   double D;
-  int mode; 
+  int mode; // AUTOMATIC = 1, MANUAL = 0
   double setpoint;
   double maxOutputNormal;
   double maxOutputHigh;
   double errorOutput;
   double deltaForMax;
   //less commonly changed    
-  double maxOutputCUrrent;
+  double maxOutputCurrent;
   double outputFromPID;
   double outputToDevice;
   double prevOutput;
   bool newValue;
+
+
+  
 
   PIDextras(double aP, double aI, double aD, double aSetpoint, double amaxOutputNormal,double amaxOutputHigh,double aErrorOutput, int aMode):
           P(aP),I(aI),D(aD),setpoint(aSetpoint),maxOutputNormal(amaxOutputNormal),maxOutputHigh(amaxOutputHigh),errorOutput(aErrorOutput), mode(aMode)
@@ -126,44 +188,42 @@ struct PIDextras {
     outputToDevice =0;
     outputFromPID = 0; 
     deltaForMax = 3 ;
-    maxOutputCUrrent = maxOutputNormal;
+    maxOutputCurrent = maxOutputNormal;
   }
 };
-  
-  /*
-  struct heater
-  {
-    double output;
-    double prevOutput;
-    double errorOutput;
-    char name[20];
 
-    heater(double aOutput = 0, double aPrevOutput = 0, double aErrorOutput = 10):
-           outout(&aOutput),prevOutput(&aPrevOutput),errorOutput(&aErrorOutput) 
-    {  }
-  }
-  */
-  //define errorCode array size here
-  const int numberOfErrorCodes = 5;
+//Deprecated
+//struct heater
+//{
+//  double output;
+//  double prevOutput;
+//  double errorOutput;
+//  char name[20];
+//}
   
-  struct errorCode {
-    int ID;
-    String name;
-    bool active;
-    double startTime;
-    double graceTime; // time since activated that another message won't be sent
-    bool silenced;
-    double sleepTime; // duration that silenced error sleeps
-    bool buffered;
-    bool userOverride; 
-  };
+//define errorCode array size here
+struct errorCode 
+{
+  int ID;
+  String name;
+  bool active;
+  bool buffered;
+  bool userOverride; 
+  bool silenced;
+  unsigned long startTimer; // time error.active set to true. If acknowledged, set active = false and 
+  unsigned long gracePeriod; // time since activated that another message won't be sent
+  unsigned long graceTimer; // time grace period started
+  unsigned long silencePeriod; // duration that silenced error sleeps
+  unsigned long silenceTimer;  //time that sleep started
+  unsigned long timeout; // not sure what this will be used for
+};
 
-  struct timers {
-    unsigned long start;
-    unsigned long duration;
-    bool active;
-    unsigned long counter;
-    String name;
-  };
+struct timers {
+  unsigned long start;
+  unsigned long duration;
+  bool active;
+  unsigned long counter;
+  String name;
+};
 
 #endif

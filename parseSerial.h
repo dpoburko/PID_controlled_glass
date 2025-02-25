@@ -3,29 +3,27 @@
 #include "Arduino.h"
 #include "structures.h"
 #include "errorCheck.h"
+#include <PID_v1.h>
 
 // receive serial buffers and handle all outcomes
 
 class parseSerial {
   
+  //constructor - should just need the main serial message
+  
+
   public:
-
-    //constructor - should just need the main serial message
-    parseSerial(serialMsg& aSerial, PID& aHeaterPID, IDextras& aHeaterValues ,String& aMsgBUffer, generalSensor& aTemp, generalSensor& bTemp);
-
+    parseSerial(serialMsg& aSerial, PID& aHeaterPID, PIDextras& aHeaterValues, String& aMsgBuffer, generalSensor& aTemp, generalSensor& bTemp);
     void parse();
       
   private:
 
     void parsePIDCmd();
 
-    //void readMX300B();
-
     serialMsg* serialMain;
     PIDextras* heaterValues;
     PID* heaterPID;
-    String* msgBuffer
-    
+    String& msgBuffer;
     generalSensor* lidTemperature;
     generalSensor* enclosureTemperature;
 };
