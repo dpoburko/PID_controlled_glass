@@ -50,9 +50,11 @@
   generalSensor enclosureTemperature(60, "enclosure temperature", 22.0, 32.0, 20, 1000, 40.0, 20.0);
 //  enclosureTemperature.prevValue = 22.0;//this will be set after the first call to updateSensor();
 
-  //PIDextra(double aP, double aI, double aD, double aSetpoint, double amaxOutputNormal,double amaxOutputHigh, double errorOutput int aMode)
+  //PIDextra(double aP, double aI, double aD, double aSetpoint, double amaxOutputNormal,double amaxOutputHigh, double errorOutput, int aMode)
   //PIDextras heaterValues(2, 96, 21, lidTemperature.setpoint, 40,45,10);
   PIDextras heaterValues(2.0, 96.0, 21.0, lidTemperature.setpoint, 40.0,45.0,10.0,1);
+  PIDextras enclosureValues(10.0, 0.0, 0.0, enclosureTemperature.setpoint, 55.0,58.0,25.0,1);
+
 // Set glass temperature goal (in degrees Celsius)
 //double glassSetpoint = 55.0; //need to figure out how to reference this to the thermistor setpoint in the new structure
 
@@ -306,7 +308,7 @@ PID heaterPID(&lidTemperature.value, &heaterValues.outputFromPID, &lidTemperatur
 //!!!!!! About controlling the glass temp. In principle, there's no reason that we couldn't control the enclosure temp, where the output is the glass temp if we use
 // a sufficiently slow update cycle (every 60 - 90 seconds?) and share glass max time with the enclosure PID.
 // looks pretty easy! Just need time to tune the PID values. 
-//PID enclosurePID(&enclosureTemperature.value, &lidTemperature.setpoint,&enclosureTemperature.setpoint, enclosureValues.P, enclosureValues.I, enclosureValues.D, DIRECT);
+PID enclosurePID(&enclosureTemperature.value, &lidTemperature.setpoint, &enclosureTemperature.setpoint, enclosureValues.P, enclosureValues.I, enclosureValues.D, DIRECT);
 
 
 //instantiate the errorCheck library with references to needed variables. Note that errorCodes is a global variable, so does not need to be transfered.
@@ -364,6 +366,9 @@ void setup()
   // Set up PID output limits  
   heaterPID.SetOutputLimits(0, heaterValues.maxOutputHigh); 
   heaterPID.SetSampleTime(glassVoltageReadingInterval); 
+
+  enclosurePID.SetSampleTime(90000); 
+  heaterPID.SetOutputLimits(37, enclosureValues.maxOutputNormal); 
 
   // Set frequency of voltage readings for thermistor 1
   steinhardt1.setSampleTime(glassVoltageReadingInterval);
@@ -509,6 +514,9 @@ void loop()
      errorCheck.update();
      
     } 
+	  
+    enclosurePID.Compute();
+	  
   }
 
    //%%% @Izzy, I have just noticed that we have no errorChecking when in manual mode. This seems prone to troubles. Let's rethink this.
@@ -555,7 +563,7 @@ void loop()
   // Check to see if the glass setpoint needs to be updated, only if enclosureTemperature.valueSetpointReached is true
   if (enclosureTemperature.setpointReached)
   {
-    CheckGlassSetpoint();
+    //CheckGlassSetpoint();
   }
 	
   // If the output from the PID is different from the previous output, adjust the pulse-width modulator duty cycle
