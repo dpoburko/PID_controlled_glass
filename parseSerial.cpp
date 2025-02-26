@@ -249,8 +249,12 @@
     } 
     else if(serialMain->incoming[0] == 'E' && serialMain->incoming[1] == 'g' )
     {
+????? small issue reading incoming[2] correctly to integer
+//
       int thisError = serialMain->incoming[2];
+      //int thisError = atol(cError);
       int minGraceTime = serialMain->incoming[3];
+      
       //errorGraceTime = minGraceTime * 60000;
       errorCodes[thisError].gracePeriod = minGraceTime * 60000;
       msgBuffer += " Error ";

@@ -1045,9 +1045,9 @@ void PrintParametersToSerial()
   logBuffer += "\t";
   logBuffer += String(lidTemperature.value, 2);
   logBuffer += "\t";
-  logBuffer += String(enclosureTemperature.slope[enclosureTemperature.index-1], 2);
+  logBuffer += String(enclosureTemperature.slope[enclosureTemperature.index-1], 3);
   logBuffer += "\t";
-  logBuffer += String(lidTemperature.slope[lidTemperature.index-1], 2);
+  logBuffer += String(lidTemperature.slope[lidTemperature.index-1], 3);
   logBuffer += "\t";
   logBuffer += String(lidTemperature.meanSquareError, 3);
   logBuffer += "\t";
@@ -1165,11 +1165,16 @@ void RemoveErroneousSensorReadings(generalSensor &sensor, double tolerance)
   {
     if ( (abs(sensor.value - sensor.history[(sensor.index-1)%sensor.historySize])>tolerance) && (abs(sensor.value - sensor.history[(sensor.index-2)%sensor.historySize])>tolerance) ) 
     {
-     sensor.value = sensor.history[(sensor.index-2)%sensor.historySize];
+     
       // Send a message to the serial
       msgBuffer += "Erroneous ";
       msgBuffer += sensor.name;
-      msgBuffer += " data point reassigned";
+      msgBuffer += " reading of ";
+      msgBuffer += sensor.value;
+      msgBuffer += " data point reassigned to ";
+      sensor.value = sensor.history[(sensor.index-2)%sensor.historySize];
+      msgBuffer += sensor.value;
+      
     }
   }
 
@@ -1215,10 +1220,13 @@ void sensorUpdate(generalSensor& sensor) {
   if (sensor.historyFilled) {
     //determine slope
     sensor.slope[sensor.index] = (sensor.value - sensor.history[(sensor.index - sensor.slopeInterval) % sensor.historySize]) / 
-                                 (sensor.slopeUnits * (sensor.time[sensor.index] - sensor.time[(sensor.index - sensor.slopeInterval) % sensor.historySize]));
+                                 ( (sensor.time[sensor.index] - sensor.time[(sensor.index - sensor.slopeInterval) % sensor.historySize]) / sensor.slopeUnits);
+    if (abs(sensor.slope[sensor.index])>10000) {
+      sensor.slope[sensor.index] = 0;
+    }
 
     //calculate deviation squared for mse
-    sensor.errorHistory[sensor.index] = (sensor.value-sensor.setpoint)*(sensor.value-sensor.setpoint);
+    sensor.errorHistory[sensor.index] = (sensor.deviation)*(sensor.deviation);
 
     //calculate average and mean squared error over the history
     sensor.average = 0;
@@ -1233,6 +1241,7 @@ void sensorUpdate(generalSensor& sensor) {
     
     sensor.average /= sensor.historySize;
     sensor.meanSquareError /= sensor.historySize;
+    sensor.meanSquareError = sqrt(sensor.meanSquareError);
     
   } else {
     //if history is not yet filled ....
@@ -1253,6 +1262,7 @@ void sensorUpdate(generalSensor& sensor) {
       }
       sensor.average /= (sensor.index+1);
       sensor.meanSquareError /= (sensor.index+1);
+      sensor.meanSquareError = sqrt(sensor.meanSquareError);
   }
 
   sensor.index++;
