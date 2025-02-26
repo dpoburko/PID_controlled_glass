@@ -44,15 +44,17 @@
 // PID CONTROLLER VARIABLES
 // *************************************************************************************************************************************
 //generalSensor thisSensor(int arraySize, "name", value, setpoint, slopeInterval, slopeUnits(), upperLimit, lowerLimit) : 
-  generalSensor lidTemperature(60, "lid temperature",22.0,55.0,10,1000,65.0,20.0);
+  generalSensor lidTemperature(60, "lid temperature",22.0,55.0,10,60000,65.0,20.0);
 //  lidTemperature.prevValue = 22.0; //this will be set after the first call to updateSensor();
   
-  generalSensor enclosureTemperature(60, "enclosure temperature", 22.0, 32.0, 20, 1000, 40.0, 20.0);
+  generalSensor enclosureTemperature(60, "enclosure temperature", 22.0, 32.0, 30, 60000, 40.0, 20.0);
 //  enclosureTemperature.prevValue = 22.0;//this will be set after the first call to updateSensor();
 
   //PIDextra(double aP, double aI, double aD, double aSetpoint, double amaxOutputNormal,double amaxOutputHigh, double errorOutput, int aMode)
-  //PIDextras heaterValues(2, 96, 21, lidTemperature.setpoint, 40,45,10);
-  PIDextras heaterValues(2.0, 96.0, 21.0, lidTemperature.setpoint, 40.0,45.0,10.0,1);
+// 250226 - It looks like the lid temp oscillations have a period of about 12 readings. If 
+  
+PIDextras heaterValues(2.0, 96.0, 21.0, lidTemperature.setpoint, 40.0,45.0,10.0,1);
+  
   PIDextras enclosureValues(10.0, 0.0, 0.0, enclosureTemperature.setpoint, 55.0,58.0,25.0,1);
 
 // Set glass temperature goal (in degrees Celsius)
