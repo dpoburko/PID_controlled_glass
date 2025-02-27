@@ -363,7 +363,7 @@ void setup()
   enclosurePID.SetMode(AUTOMATIC);
   enclosureValues.deltaForMax  = 2.0;
   enclosureValues.maxOutputHigh = 55.0;
-  enclosureValues.maxOutputNormal = 48.0;
+  enclosureValues.maxOutputNormal = 50.0;
 
   // Set frequency of voltage readings for thermistor 1
   steinhardt1.setSampleTime(glassVoltageReadingInterval);
@@ -386,9 +386,8 @@ void setup()
   Serial.println(lidTemperature.value, 2);
 
    // Variable to store when the last glass setpoint update happened
-   lidTemperature.setpointInterval = 150000;
-   lidTemperature.setpointLastUpdate = 0;
-
+  lidTemperature.setpointInterval = 150000;
+  lidTemperature.setpointLastUpdate = 0;
 
   startUpTime = millis();
 }
@@ -530,7 +529,7 @@ void loop()
 
     // Define output of PID as the pulse-width modulated output (will be at 0 the first time around as the PID needs two data points for computation)
     //if (heaterValues->newValue == true) 
-    if (heaterPID.() == true) 
+    if (heaterPID.Compute() == true)
     {
     	heaterValues.outputToDevice = heaterValues.outputFromPID;
     	// handoff the PID's intended output to the heater structure
@@ -544,7 +543,7 @@ void loop()
   }
 
     if (enclosurePID.Compute() == true){
-      msgBuffer += "enclosurePID setting lidTermperature.setpoint to  ";
+      msgBuffer += "enclosurePID setting lidTermperature.setpoint to ";
       msgBuffer += String(lidTemperature.setpoint,1);
       errorCodes[3].silenced = true; //suppress error code 5 to allow new temps to settle
       errorCodes[3].silenceTimer = millis(); //suppress error code 5 to allow new temps to settle
@@ -1095,8 +1094,10 @@ void PrintParametersToSerial()
   logBuffer += String(lidTemperature.slope[lidTemperature.index], 3);
   logBuffer += " [";
   logBuffer += String(lidTemperature.index);
+  logBuffer += ",";
+  int currIndex = (lidTemperature.index - lidTemperature.slopeInterval + lidTemperature.historySize) % lidTemperature.historySize;
+  logBuffer += String(currIndex);
   logBuffer += "]\t";
-
   logBuffer += String(lidTemperature.meanSquareError, 3);
   logBuffer += "\t";
   logBuffer += String(lidTemperature.setpoint, 2);
@@ -1219,7 +1220,6 @@ void RemoveErroneousSensorReadings(generalSensor &sensor, double tolerance)
   {
     if ( (abs(sensor.value - sensor.history[(sensor.index-1)%sensor.historySize])>tolerance) && (abs(sensor.value - sensor.history[(sensor.index-2)%sensor.historySize])>tolerance) ) 
     {
-     
       // Send a message to the serial
       msgBuffer += "Erroneous ";
       msgBuffer += sensor.name;
@@ -1303,10 +1303,13 @@ void sensorUpdate(generalSensor& sensor) {
     //if history is not yet filled ....
       if (sensor.index==0) {
         sensor.slope[sensor.index] = (sensor.value - sensor.history[0]) / ( (sensor.time[sensor.index] - sensor.time[0]) / sensor.slopeUnits);
-      } else {
+      } else if (sensor.index<= sensor.slopeInterval) {
         sensor.slope[sensor.index] = (sensor.value - sensor.history[1]) / ( (sensor.time[sensor.index] - sensor.time[1]) / sensor.slopeUnits);
+      } else {
+        sensor.slope[sensor.index] = (sensor.value - sensor.history[(sensor.index - sensor.slopeInterval + sensor.historySize) % sensor.historySize]) / 
+                                 ( (sensor.time[sensor.index] - sensor.time[(sensor.index - sensor.slopeInterval + sensor.historySize) % sensor.historySize]) / sensor.slopeUnits);
       }
-      
+     
       sensor.meanSquareError = 0;
       sensor.average = 0;
       

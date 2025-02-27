@@ -211,7 +211,7 @@
 
       else if (serialMain->incoming[1] == 'e') 
       {
-        if (serialMain->incoming[2] == 'p' || serialMain->incoming[2] == 'i' || serialMain->incoming[2] == 'i') {
+        if (serialMain->incoming[2] == 'p' || serialMain->incoming[2] == 'i' || serialMain->incoming[2] == 'd') {
           if (serialMain->incoming[2] == 'p') 
           {
             char ppp[3] = {serialMain->incoming[3],serialMain->incoming[4],serialMain->incoming[5]};
