@@ -361,6 +361,9 @@ void setup()
   enclosurePID.SetSampleTime(180000); 
   enclosurePID.SetOutputLimits(25, enclosureValues.maxOutputNormal); 
   enclosurePID.SetMode(AUTOMATIC);
+  enclosureValues.deltaForMax  = 2.0;
+  enclosureValues.maxOutputHigh = 55.0;
+  enclosureValues.maxOutputNormal = 48.0;
 
   // Set frequency of voltage readings for thermistor 1
   steinhardt1.setSampleTime(glassVoltageReadingInterval);
@@ -486,17 +489,48 @@ void loop()
 	      msgBuffer += String(heaterValues.maxOutputCurrent);
       }
     }
+	  
+    // If enclosure temperature is far from the setpoint, set the maximum PID output to a pre-determined aggressive value
+    if ( (enclosureTemperature.setpoint - enclosureTemperature.value) >  enclosureValues.deltaForMax )
+    {
+      // If the current maximum PID output is not already set to aggressive, set it to aggressive and print a message to the serial
+      if (enclosureValues.maxOutputCurrent != enclosureValues.maxOutputHigh) 
+      {
+        // Set the current PID output to aggressive
+        enclosureValues.maxOutputCurrent = enclosureValues.maxOutputHigh;
+        enclosurePID.SetOutputLimits(25, enclosureValues.maxOutputCurrent);
+
+        msgBuffer += " Switching to enclosureValues.maxOutputCurrent_";
+	      msgBuffer += String(enclosureValues.maxOutputCurrent);
+      } 
+    }
+    // If the enclosure temperature is close to the setpoint, set the maximum PID output to a pre-determined conservative value 
+    else 
+    {
+      // If the current maximum PID output is not already set to conservative, set it to conservative and print a message to the serial
+      if (enclosureValues.maxOutputCurrent != enclosureValues.maxOutputNormal) 
+      {
+        // Set the current PID output to conservative
+        enclosureValues.maxOutputCurrent = enclosureValues.maxOutputNormal;
+        enclosurePID.SetOutputLimits(25, enclosureValues.maxOutputCurrent);
+
+        // Print a message to the serial
+        msgBuffer += " Switch to enclosureValues.maxOutputNormal_";
+	      msgBuffer += String(enclosureValues.maxOutputCurrent);
+      }
+    }
+	  
   }
-  
-  // If the PID is in automaticPIDMode, compute output
+
+  // If the PID is in automaticPIDMode,  output
   if (heaterPID.GetMode() == 1) 
   {
     // Make sure it is time to recalculate
-    //heaterValues->newValue = heaterPID.Compute();
+    //heaterValues->newValue = heaterPID.();
 
     // Define output of PID as the pulse-width modulated output (will be at 0 the first time around as the PID needs two data points for computation)
     //if (heaterValues->newValue == true) 
-    if (heaterPID.Compute() == true) 
+    if (heaterPID.() == true) 
     {
     	heaterValues.outputToDevice = heaterValues.outputFromPID;
     	// handoff the PID's intended output to the heater structure
@@ -507,8 +541,10 @@ void loop()
      
     } 
 	  
+  }
+
     if (enclosurePID.Compute() == true){
-      msgBuffer += "enclosurePID calculated lidTemp should be ";
+      msgBuffer += "enclosurePID setting lidTermperature.setpoint to  ";
       msgBuffer += String(lidTemperature.setpoint,1);
       errorCodes[3].silenced = true; //suppress error code 5 to allow new temps to settle
       errorCodes[3].silenceTimer = millis(); //suppress error code 5 to allow new temps to settle
@@ -517,9 +553,7 @@ void loop()
       errorCodes[5].silenced = true; //suppress error code 5 to allow new temps to settle
       errorCodes[5].silenceTimer = millis(); //suppress error code 5 to allow new temps to settle
     }
-	  
-  }
-
+	
    //%%% @Izzy, I have just noticed that we have no errorChecking when in manual mode. This seems prone to troubles. Let's rethink this.
    // DP - isAirTempuratureCliminb might more easily be determined as a slope from the enclosureTemperature.valueHistory
 
