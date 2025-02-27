@@ -125,6 +125,13 @@
           lidTemperature->setpoint = atof(newSetpoint)/10.0;
           msgBuffer += " lidTemperature->setpoint now ";
           msgBuffer += String(lidTemperature->setpoint,1); 
+          errorCodes[3].silenced = true;
+          errorCodes[3].silenceTimer = millis();
+          errorCodes[4].silenced = true;
+          errorCodes[4].silenceTimer = millis();
+          errorCodes[5].silenced = true;
+          errorCodes[5].silenceTimer = millis();
+
         }
         else if (serialMain->incoming[2] == 'e') 
         {
@@ -179,7 +186,7 @@
           char ppp[3] = {serialMain->incoming[3],serialMain->incoming[4],serialMain->incoming[5]};
           heaterValues->P = 0.0;
           heaterValues->P = atol(ppp);
-          msgBuffer += " Setting P = ";
+          msgBuffer += " Setting heater P = ";
           msgBuffer += String(heaterValues->P, 1);
         }
         else if (serialMain->incoming[2] == 'i') 
@@ -187,7 +194,7 @@
           char iii[3] = {serialMain->incoming[3],serialMain->incoming[4],serialMain->incoming[5]};
           heaterValues->I = 0.0;
           heaterValues->I = atol(iii);
-          msgBuffer += " Setting I = ";
+          msgBuffer += " Setting heater I = ";
           msgBuffer += String(heaterValues->I);
         }
         else if (serialMain->incoming[2] == 'd') 
@@ -195,7 +202,7 @@
           char ddd[3] = {serialMain->incoming[3],serialMain->incoming[4],serialMain->incoming[5]};
           heaterValues->D = 0.0;
           heaterValues->D = atol(ddd);
-          msgBuffer += " Setting D = ";
+          msgBuffer += " Setting heater D = ";
           msgBuffer += String(heaterValues->D);
         }
         
@@ -209,16 +216,16 @@
           {
             char ppp[3] = {serialMain->incoming[3],serialMain->incoming[4],serialMain->incoming[5]};
             enclosureValues->P = 0.0;
-            enclosureValues->P = atol(ppp);
-            msgBuffer += " Setting P = ";
-            msgBuffer += String(enclosureValues->P, 1);
+            enclosureValues->P = atof(ppp)/10;
+            msgBuffer += " Setting enclosure P = ";
+            msgBuffer += String(enclosureValues->P, 2);
           }
           else if (serialMain->incoming[2] == 'i') 
           {
             char iii[3] = {serialMain->incoming[3],serialMain->incoming[4],serialMain->incoming[5]};
             enclosureValues->I = 0.0;
             enclosureValues->I = atol(iii);
-            msgBuffer += " Setting I = ";
+            msgBuffer += " Setting enclosure I = ";
             msgBuffer += String(enclosureValues->I);
           }
           else if (serialMain->incoming[2] == 'd') 
@@ -226,7 +233,7 @@
             char ddd[3] = {serialMain->incoming[3],serialMain->incoming[4],serialMain->incoming[5]};
             enclosureValues->D = 0.0;
             enclosureValues->D = atol(ddd);
-            msgBuffer += " Setting D = ";
+            msgBuffer += " Setting enclosure D = ";
             msgBuffer += String(enclosureValues->D);
           }
           

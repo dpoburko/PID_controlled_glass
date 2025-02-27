@@ -44,7 +44,8 @@
 // PID CONTROLLER VARIABLES
 // *************************************************************************************************************************************
 //generalSensor thisSensor(int arraySize, "name", value, setpoint, slopeInterval, slopeUnits(), upperLimit, lowerLimit) : 
-  generalSensor lidTemperature(60, "lid temperature",22.0,55.0,10,60000,65.0,20.0);
+ 
+  generalSensor lidTemperature(60,       "lid temperature",       22.0, 55.0, 10, 60000, 65.0, 20.0);
 //  lidTemperature.prevValue = 22.0; //this will be set after the first call to updateSensor();
   
   generalSensor enclosureTemperature(60, "enclosure temperature", 22.0, 32.0, 30, 60000, 40.0, 20.0);
@@ -1237,9 +1238,11 @@ void sensorUpdate(generalSensor& sensor) {
 
   //determine slope and append to slope history
   if (sensor.historyFilled) {
+    
     //determine slope
     sensor.slope[sensor.index] = (sensor.value - sensor.history[(sensor.index - sensor.slopeInterval + sensor.historySize) % sensor.historySize]) / 
                                  ( (sensor.time[sensor.index] - sensor.time[(sensor.index - sensor.slopeInterval + sensor.historySize) % sensor.historySize]) / sensor.slopeUnits);
+ 
     if (abs(sensor.slope[sensor.index])>10000) {
       sensor.slope[sensor.index] = 0;
     }
@@ -1291,7 +1294,7 @@ void sensorUpdate(generalSensor& sensor) {
   sensor.index++;
 
   //this is essentially used like a circular buffer
-  if (sensor.index == (sensor.historySize)) {
+  if (sensor.index == sensor.historySize) {
     sensor.historyFilled = true;
     sensor.index = 0;  // reset
   }

@@ -133,7 +133,7 @@ struct generalSensor {
     // Constructor to initialize size and allocate the array for history
     generalSensor(int arraySize, String aName = "sensor", double initVal = 0.0, float initSP = 0.0, int initSI = 5, long initSU = 1000, 
                   float initUL = 100, float initLL = 0.0) : 
-    historySize(arraySize), name(aName),value(initVal), setpoint(initSP),upperLimit(initUL), lowerLimit(initLL),slopeInterval(initSI),slopeUnits(initSU)
+    historySize(arraySize), name(aName),value(initVal), setpoint(initSP),slopeInterval(initSI),slopeUnits(initSU),upperLimit(initUL), lowerLimit(initLL)
     {
       history = new double[historySize];
       slope = new double[historySize];
