@@ -1217,10 +1217,13 @@ void sensorUpdate(generalSensor& sensor) {
   if (sensor.value > sensor.maximum) sensor.maximum = sensor.value;
 
   //determine slope and append to slope history
+  
   if (sensor.historyFilled) {
+    
     //determine slope
-    sensor.slope[sensor.index] = (sensor.value - sensor.history[(sensor.index - sensor.slopeInterval) % sensor.historySize]) / 
-                                 ( (sensor.time[sensor.index] - sensor.time[(sensor.index - sensor.slopeInterval) % sensor.historySize]) / sensor.slopeUnits);
+    sensor.slope[sensor.index] = (sensor.value - sensor.history[(sensor.index - sensor.slopeInterval + sensor.historySize) % sensor.historySize]) / 
+                                 ( (sensor.time[sensor.index] - sensor.time[(sensor.index - sensor.slopeInterval + sensor.historySize) % sensor.historySize]) / sensor.slopeUnits);
+ 
     if (abs(sensor.slope[sensor.index])>10000) {
       sensor.slope[sensor.index] = 0;
     }
@@ -1242,11 +1245,18 @@ void sensorUpdate(generalSensor& sensor) {
     sensor.average /= sensor.historySize;
     sensor.meanSquareError /= sensor.historySize;
     sensor.meanSquareError = sqrt(sensor.meanSquareError);
-    
+	  
   } else {
     //if history is not yet filled ....
-
-      sensor.slope[sensor.index] = 0;
+      if (sensor.index==0) {
+        sensor.slope[sensor.index] = (sensor.value - sensor.history[0]) / ( (sensor.time[sensor.index] - sensor.time[0]) / sensor.slopeUnits);
+      } else if (sensor.index < sensor.slopeInterval) {
+        sensor.slope[sensor.index] = (sensor.value - sensor.history[1]) / ( (sensor.time[sensor.index] - sensor.time[1]) / sensor.slopeUnits);
+      } else {
+	sensor.slope[sensor.index] = (sensor.value - sensor.history[(sensor.index - sensor.slopeInterval + sensor.historySize) % sensor.historySize]) / 
+                                 ( (sensor.time[sensor.index] - sensor.time[(sensor.index - sensor.slopeInterval + sensor.historySize) % sensor.historySize]) / sensor.slopeUnits);
+      }   
+      
       sensor.meanSquareError = 0;
       sensor.average = 0;
       
@@ -1268,7 +1278,7 @@ void sensorUpdate(generalSensor& sensor) {
   sensor.index++;
 
   //this is essentially used like a circular buffer
-  if (sensor.index == (sensor.historySize)) {
+  if (sensor.index == sensor.historySize) {
     sensor.historyFilled = true;
     sensor.index = 0;  // reset
   }
