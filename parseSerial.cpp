@@ -5,8 +5,8 @@
 #include <PID_v1.h>
 
 
-  parseSerial::parseSerial(serialMsg& aSerial, PID& aHeaterPID, PIDextras& aHeaterValues ,String& aMsgBuffer, generalSensor& aTemp, generalSensor& bTemp)
-  :  serialMain(&aSerial), heaterPID(&aHeaterPID), heaterValues(&aHeaterValues), msgBuffer(aMsgBuffer),lidTemperature(&aTemp), enclosureTemperature(&bTemp) { }
+  parseSerial::parseSerial(serialMsg& aSerial, PID& aHeaterPID, PIDextras& aHeaterValues, PID& aEnclosurePID, PIDextras& aEnclosureValues ,String& aMsgBuffer, generalSensor& aTemp, generalSensor& bTemp)
+  :  serialMain(&aSerial), heaterPID(&aHeaterPID), heaterValues(&aHeaterValues), enclosurePID(&aEnclosurePID), enclosureValues(&aEnclosureValues), msgBuffer(aMsgBuffer),lidTemperature(&aTemp), enclosureTemperature(&bTemp) { }
 
   /*
    * Things that need to be passed
@@ -47,9 +47,14 @@
           Serial.println("   Ponnn. - manually set heaterValues.outputToDevice (only usual in manualPIDMode mode");
           Serial.println("   Plmnnn. - updated agressive PWM output (high max)");
           Serial.println("   Plnnnn. - updated holding (normal max) PWM");
+          Serial.println("   Pxnnn. - heater PWM on error");
           Serial.println("   Ptpnnn. - heaterPID->SetTunings(nnn,iii,ddd)");
           Serial.println("   Ptinnn. - heaterPID->SetTunings(ppp,nnn,ddd)");
           Serial.println("   Ptdnnn. - heaterPID->SetTunings(ppp,iii,nnn)");
+          Serial.println("   Pepnnn. - enclosurePID->SetTunings(nnn,iii,ddd)");
+          Serial.println("   Peinnn. - enclosurePID->SetTunings(ppp,nnn,ddd)");
+          Serial.println("   Pednnn. - enclosurePID->SetTunings(ppp,iii,nnn)");
+          Serial.println("   Ptdnnnnn. - call enclosurePID->SetSampleTime(nnnnn)");
           Serial.println("   Pdnnnn. - call heaterPID->SetSampleTime(nnnn) & STEINHART::setSampleTime(nnnn)");
           Serial.println("   L - List column headers");
           Serial.println("   St - Show temperature history in serial monitor");
@@ -103,7 +108,7 @@
         msgBuffer += " heaterValues.outputToDevice now "; 
         msgBuffer += String(heaterValues->outputToDevice);  
       }
-      else if (serialMain->incoming[1] == 'e') 
+      else if (serialMain->incoming[1] == 'x') 
       {
         char newOutput[3] = {serialMain->incoming[2],serialMain->incoming[3],serialMain->incoming[4]};
         heaterValues->errorOutput = atof(newOutput); 
@@ -196,6 +201,48 @@
         
         heaterPID->SetTunings(heaterValues->P,heaterValues->I,heaterValues->D);
       }
+
+      else if (serialMain->incoming[1] == 'e') 
+      {
+        if (serialMain->incoming[2] == 'p' || serialMain->incoming[2] == 'i' || serialMain->incoming[2] == 'i') {
+          if (serialMain->incoming[2] == 'p') 
+          {
+            char ppp[3] = {serialMain->incoming[3],serialMain->incoming[4],serialMain->incoming[5]};
+            enclosureValues->P = 0.0;
+            enclosureValues->P = atol(ppp);
+            msgBuffer += " Setting P = ";
+            msgBuffer += String(enclosureValues->P, 1);
+          }
+          else if (serialMain->incoming[2] == 'i') 
+          {
+            char iii[3] = {serialMain->incoming[3],serialMain->incoming[4],serialMain->incoming[5]};
+            enclosureValues->I = 0.0;
+            enclosureValues->I = atol(iii);
+            msgBuffer += " Setting I = ";
+            msgBuffer += String(enclosureValues->I);
+          }
+          else if (serialMain->incoming[2] == 'd') 
+          {
+            char ddd[3] = {serialMain->incoming[3],serialMain->incoming[4],serialMain->incoming[5]};
+            enclosureValues->D = 0.0;
+            enclosureValues->D = atol(ddd);
+            msgBuffer += " Setting D = ";
+            msgBuffer += String(enclosureValues->D);
+          }
+          
+          enclosurePID->SetTunings(enclosureValues->P,enclosureValues->I,enclosureValues->D);
+          
+        } else if (serialMain->incoming[2] == 't')
+          {
+            char newDelay[5] = {serialMain->incoming[2],serialMain->incoming[3],serialMain->incoming[4],serialMain->incoming[5],serialMain->incoming[6]};
+            int nd = atol(newDelay);
+            enclosurePID->SetSampleTime(nd);
+            msgBuffer +=" enclosurePID interval now ";
+            msgBuffer += String(newDelay, 2);
+          }
+        
+      }
+      
     } 
     else if(serialMain->incoming[0] == 'S' && serialMain->incoming[1] == 't' )
     {
@@ -249,7 +296,7 @@
     } 
     else if(serialMain->incoming[0] == 'E' && serialMain->incoming[1] == 'g' )
     {
-????? small issue reading incoming[2] correctly to integer
+//????? small issue reading incoming[2] correctly to integer
 //
       int thisError = serialMain->incoming[2];
       //int thisError = atol(cError);

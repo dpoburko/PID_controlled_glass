@@ -6,9 +6,8 @@
 
 //DP to Izzy
 // See this URL for an overview of pointers (*) and references (&) https://www.arduino.cc/reference/en/language/structure/pointer-access-operators/dereference/
-// also https://www.learncpp.com/cpp-tutorial/introduction-to-pointers/
-// pointers in a constructor look like 'type* nameToPointer'
-
+// also https://www.learncpp.com/cpp-tutorial/introduction-to-pointers/, pointers in a constructor look like 'type* nameToPointer'
+// We need to add an new errorCode for when incput voltage fails (i.e. no power to heater)
 
 // Define the errorCodes array. Memory if this global variables is allocated before objects like classes or constructors
 errorCode errorCodes[numberOfErrorCodes]; 
@@ -16,8 +15,8 @@ errorCode errorCodes[numberOfErrorCodes];
 //Constructor:
 //Note that the String variables can be used directly a reference, and don't need to be converted to pointere. Hence msgBuffer(amsgBuffer) not msgBuffer(&amsgBuffer)
 
-errorCheck::errorCheck(String& amsgBuffer,String& aerrorBuffer, generalSensor& alidTemperature, PIDextras& aheaterValues, long& astartUpTime):
-    msgBuffer(amsgBuffer),errorBuffer (aerrorBuffer),  lidTemperature(&alidTemperature), heaterValues(&aheaterValues), startUpTime(astartUpTime)
+errorCheck::errorCheck(String& amsgBuffer,String& aerrorBuffer, generalSensor& alidTemperature, PIDextras& aheaterValues, long& astartUpTime, double& aVoltage):
+    msgBuffer(amsgBuffer),errorBuffer (aerrorBuffer),  lidTemperature(&alidTemperature), heaterValues(&aheaterValues), startUpTime(astartUpTime), buckConverterVoltage(aVoltage)
 {
 }
 
@@ -26,7 +25,7 @@ errorCheck::errorCheck(String& amsgBuffer,String& aerrorBuffer, generalSensor& a
 void errorCheck::begin(){
 
   //number of elements must match 'numberOfErrorCodes' at top of errorCheck.h
-  String errorCodeNames[] = {"OK","no thermistor","over temperature","Thermal runaway","Under powered","Heater failure"};
+  String errorCodeNames[] = {"OK","no thermistor","over temperature","Thermal runaway","Under powered","Heater failure","Power supply failure"};
   
   long tic = millis();
   //Prior to checking for errors, check if any errors have timed out and reset active state
@@ -38,16 +37,14 @@ void errorCheck::begin(){
     errorCodes[i].buffered = false;
     errorCodes[i].userOverride = false;
     errorCodes[i].startTimer = tic;
-    errorCodes[i].gracePeriod = 180000;
+    errorCodes[i].gracePeriod = 240000;
     errorCodes[i].graceTimer = tic;
-    errorCodes[i].silencePeriod = 180000;
+    errorCodes[i].silencePeriod = 240000;
     errorCodes[i].silenceTimer = tic;
   }
 }
 
-
 void errorCheck::update() {
-
   
   //errorBuffer is referenced from the .ino such that it can be directly updated without de-referencing
 
@@ -253,5 +250,44 @@ void errorCheck::update() {
     }
     
   } // if lidTemperature->historyFilled
-     
+
+  // ERROR6: No in-coming heater power
+  if (buckConverterVoltage<1.0) 
+  {
+    // If error is silenced,when errorCheck.update() is called, the current output will not be modified 
+    // This can't be placed in the initial if statement, because that would result in the 'else' action
+    // that would set errorCodes[1].active = false;
+    if (!errorCodes[6].silenced) {
+      
+      newError = 6;
+      
+      //if the error code was not previously acitve, start the error timer and set active == true
+      if (!errorCodes[6].active) {
+        errorCodes[6].active = true;  
+        errorCodes[6].startTimer = millis();  
+      }
+      
+      // Assume PID will be full throttle. Override to 0.
+      // If error is silenced,when errorChecl.update() is called, the current output will not be modified 
+      heaterValues->outputToDevice = 0;
+
+  
+      //manage buffering the error codes
+      if (!errorCodes[6].buffered) {
+        errorCodes[6].buffered = true;
+        errorBuffer += newError;
+        errorBuffer += " ";
+        errorBuffer += errorCodes[6].name;
+      }
+    }
+  } else {
+    //since each error is now handled as it's own array, there needs to be a mechanism to reset or turn off errorcodes
+    if (errorCodes[6].active) {
+      //reset error1
+      errorCodes[6].active = false;  
+      errorCodes[6].buffered = false;
+      errorBuffer += " Error 6 resolved: Heater power restored ";
+    }
+  }
+   
 }

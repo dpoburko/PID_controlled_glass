@@ -4,7 +4,7 @@
 #include "structures.h"
 
 //The errorCodes array will be global using the extern declaration. It is compiled and memory allocated before classes or constructors
-const int numberOfErrorCodes = 6;
+const int numberOfErrorCodes = 7;
 
 extern errorCode errorCodes[numberOfErrorCodes]; 
 
@@ -19,7 +19,7 @@ class errorCheck {
   public:
   
     //need to pass the lidPID structure, the lid structure, and msgBuffer
-    errorCheck(String& amsgBuffer,String& aerrorBuffer ,generalSensor& alidTemperature, PIDextras& aheaterValues, long& astartUpTime);
+    errorCheck(String& amsgBuffer,String& aerrorBuffer ,generalSensor& alidTemperature, PIDextras& aheaterValues, long& astartUpTime, double& aVoltage);
     
     //these public variables should be accessible to the sketch as 
     int errorCode;
@@ -34,6 +34,7 @@ class errorCheck {
     String& errorBuffer;
     String& msgBuffer;
     long& startUpTime;
+    double& buckConverterVoltage;
     int newError;
     generalSensor* lidTemperature;
     PIDextras* heaterValues;

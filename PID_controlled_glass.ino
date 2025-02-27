@@ -55,7 +55,7 @@
   
 PIDextras heaterValues(2.0, 96.0, 21.0, lidTemperature.setpoint, 40.0,45.0,10.0,1);
   
-  PIDextras enclosureValues(10.0, 0.0, 0.0, enclosureTemperature.setpoint, 55.0,58.0,25.0,1);
+PIDextras enclosureValues(4.0, 0.0, 0.0, enclosureTemperature.setpoint, 55.0,58.0,25.0,1);
 
 // Set glass temperature goal (in degrees Celsius)
 //double glassSetpoint = 55.0; //need to figure out how to reference this to the thermistor setpoint in the new structure
@@ -133,6 +133,7 @@ long startUpTime = millis();
 //thermistor type should mostly refer to the hardware aspects of a thermistor rather than it's measurements.
 //instantiate as thermistor(String thisName, byte thisPin, double thisrNominal = 10000, double thisrSeries = 9985, double thistNominal = 25.0, double thisCoef = 3435) 
 thermistor lidThermistor("lid thermistor", THERMISTOR1PIN);
+
 thermistor enclosureThermistor("enclosure thermistor",THERMISTOR2PIN);
 
 //!!!! These values are now associated with the thermistor structures
@@ -317,9 +318,9 @@ PID enclosurePID(&enclosureTemperature.value, &lidTemperature.setpoint, &enclosu
 
 //250224 - I am not convinced that errorCheck and parseSerial instantiation don't need to be references
 
-errorCheck errorCheck(msgBuffer,errorBuffer, lidTemperature, heaterValues, startUpTime);
+errorCheck errorCheck(msgBuffer,errorBuffer, lidTemperature, heaterValues, startUpTime, buckConverterVoltage);
 
-parseSerial parseSerial(serialMain, heaterPID, heaterValues, msgBuffer, lidTemperature, enclosureTemperature);
+parseSerial parseSerial(serialMain, heaterPID, heaterValues, enclosurePID, enclosureValues, msgBuffer, lidTemperature, enclosureTemperature);
 
 // *************************************************************************************************************************************
 // SETUP
@@ -344,19 +345,6 @@ void setup()
   errorBuffer.reserve(256);
   msgBuffer.reserve(128);
   logBuffer.reserve(512);
-  
-  //this needs to be done in setup, not prior to >>>>>>> Now done in errorCheck.cpp
-//  for (i=0 ; i < nErrorCodes; i++) {
-//    errorCodes[i].ID = i;
-//    name = codeNames[i];
-//    active = false;
-//    startTime = 0;
-//    graceTime = errorGraceTime;
-//    silenced = false;
-//    sleepTime = 180000;
-//    buffered = false;
-//    userOverride = false;
-//  }
  
   // Initialize PID (automaticPIDMode mode)
   //PIDMode = automaticPIDMode;
@@ -369,8 +357,9 @@ void setup()
   heaterPID.SetOutputLimits(0, heaterValues.maxOutputHigh); 
   heaterPID.SetSampleTime(glassVoltageReadingInterval); 
 
-  enclosurePID.SetSampleTime(90000); 
-  heaterPID.SetOutputLimits(37, enclosureValues.maxOutputNormal); 
+  enclosurePID.SetSampleTime(180000); 
+  enclosurePID.SetOutputLimits(25, enclosureValues.maxOutputNormal); 
+  enclosurePID.SetMode(AUTOMATIC);
 
   // Set frequency of voltage readings for thermistor 1
   steinhardt1.setSampleTime(glassVoltageReadingInterval);
@@ -517,7 +506,16 @@ void loop()
      
     } 
 	  
-    enclosurePID.Compute();
+    if (enclosurePID.Compute() == true){
+      msgBuffer += "enclosurePID calculated lidTemp should be ";
+      msgBuffer += String(lidTemperature.setpoint,1);
+      errorCodes[3].silenced = true; //suppress error code 5 to allow new temps to settle
+      errorCodes[3].silenceTimer = millis(); //suppress error code 5 to allow new temps to settle
+      errorCodes[4].silenced = true; //suppress error code 5 to allow new temps to settle
+      errorCodes[4].silenceTimer = millis(); //suppress error code 5 to allow new temps to settle
+      errorCodes[5].silenced = true; //suppress error code 5 to allow new temps to settle
+      errorCodes[5].silenceTimer = millis(); //suppress error code 5 to allow new temps to settle
+    }
 	  
   }
 
@@ -530,7 +528,7 @@ void loop()
   
   // Check if the air temperature is rising or fall
   //If rising....
-  if ( enclosureTemperature.slope[enclosureTemperature.index-1] > 0.2  )
+  if ( enclosureTemperature.slope[enclosureTemperature.index-1] > 0.2  && enclosureTemperature.prevValue <= enclosureTemperature.setpoint)
   //if (isAirTemperatureClimbing == true) //should eventually be replaced
   {
     //if setpoint reached.
@@ -547,10 +545,10 @@ void loop()
     //what if setpoint not reached?
 
   //If temp falling
-  } else {
+  } else if ( enclosureTemperature.slope[enclosureTemperature.index-1] < -0.2  ) {
     
     //assume air temp needs to fall to reach set point
-    if (enclosureTemperature.value <= enclosureTemperature.setpoint)
+    if (enclosureTemperature.value <= enclosureTemperature.setpoint && enclosureTemperature.prevValue > enclosureTemperature.setpoint)
     {
       if (enclosureTemperature.setpointReached = false) {
         enclosureTemperature.setpointReached = true;
@@ -1055,10 +1053,15 @@ void PrintParametersToSerial()
   logBuffer += "\t";
   logBuffer += String(lidTemperature.value, 2);
   logBuffer += "\t";
-  logBuffer += String(enclosureTemperature.slope[enclosureTemperature.index-1], 3);
-  logBuffer += "\t";
-  logBuffer += String(lidTemperature.slope[lidTemperature.index-1], 3);
-  logBuffer += "\t";
+  logBuffer += String(enclosureTemperature.slope[enclosureTemperature.index], 3);
+  logBuffer += " [";
+  logBuffer += String(enclosureTemperature.index);
+  logBuffer += "]\t";
+  logBuffer += String(lidTemperature.slope[lidTemperature.index], 3);
+  logBuffer += " [";
+  logBuffer += String(lidTemperature.index);
+  logBuffer += "]\t";
+
   logBuffer += String(lidTemperature.meanSquareError, 3);
   logBuffer += "\t";
   logBuffer += String(lidTemperature.setpoint, 2);
@@ -1074,6 +1077,12 @@ void PrintParametersToSerial()
   logBuffer += String(heaterValues.I);
   logBuffer += "/";
   logBuffer += String(heaterValues.D);
+  logBuffer += "\t";
+  logBuffer += String(enclosureValues.P);
+  logBuffer += "/";
+  logBuffer += String(enclosureValues.I);
+  logBuffer += "/";
+  logBuffer += String(enclosureValues.D);
   logBuffer += "\t";
   logBuffer += errorBuffer;
   logBuffer += "\t";
@@ -1229,8 +1238,8 @@ void sensorUpdate(generalSensor& sensor) {
   //determine slope and append to slope history
   if (sensor.historyFilled) {
     //determine slope
-    sensor.slope[sensor.index] = (sensor.value - sensor.history[(sensor.index - sensor.slopeInterval) % sensor.historySize]) / 
-                                 ( (sensor.time[sensor.index] - sensor.time[(sensor.index - sensor.slopeInterval) % sensor.historySize]) / sensor.slopeUnits);
+    sensor.slope[sensor.index] = (sensor.value - sensor.history[(sensor.index - sensor.slopeInterval + sensor.historySize) % sensor.historySize]) / 
+                                 ( (sensor.time[sensor.index] - sensor.time[(sensor.index - sensor.slopeInterval + sensor.historySize) % sensor.historySize]) / sensor.slopeUnits);
     if (abs(sensor.slope[sensor.index])>10000) {
       sensor.slope[sensor.index] = 0;
     }
@@ -1255,8 +1264,12 @@ void sensorUpdate(generalSensor& sensor) {
     
   } else {
     //if history is not yet filled ....
-
-      sensor.slope[sensor.index] = 0;
+      if (sensor.index==0) {
+        sensor.slope[sensor.index] = (sensor.value - sensor.history[0]) / ( (sensor.time[sensor.index] - sensor.time[0]) / sensor.slopeUnits);
+      } else {
+        sensor.slope[sensor.index] = (sensor.value - sensor.history[1]) / ( (sensor.time[sensor.index] - sensor.time[1]) / sensor.slopeUnits);
+      }
+      
       sensor.meanSquareError = 0;
       sensor.average = 0;
       
