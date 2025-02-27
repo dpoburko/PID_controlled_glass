@@ -249,7 +249,7 @@
     } 
     else if(serialMain->incoming[0] == 'E' && serialMain->incoming[1] == 'g' )
     {
-????? small issue reading incoming[2] correctly to integer
+//????? small issue reading incoming[2] correctly to integer
 //
       int thisError = serialMain->incoming[2];
       //int thisError = atol(cError);

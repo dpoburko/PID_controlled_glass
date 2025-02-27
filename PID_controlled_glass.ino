@@ -553,10 +553,10 @@ void loop()
   }
   
   // Check to see if the glass setpoint needs to be updated, only if enclosureTemperature.valueSetpointReached is true
-  if (enclosureTemperature.setpointReached)
-  {
+  //if (enclosureTemperature.setpointReached)
+  //{
     CheckGlassSetpoint();
-  }
+  //}
 	
   // If the output from the PID is different from the previous output, adjust the pulse-width modulator duty cycle
   if (heaterValues.outputToDevice!= heaterValues.prevOutput) 
