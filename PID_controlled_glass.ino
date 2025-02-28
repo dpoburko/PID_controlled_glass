@@ -44,9 +44,9 @@
 // PID CONTROLLER VARIABLES
 // *************************************************************************************************************************************
 //generalSensor thisSensor(int arraySize, "name", value, setpoint, slopeInterval, slopeUnits(), upperLimit, lowerLimit) : 
-  generalSensor lidTemperature(35, "lid temperature",22.0,55.0,10,1000,65.0,20.0);
+  generalSensor lidTemperature(35, "lid temperature",22.0,52.0,10,1000,65.0,20.0);
  
-  generalSensor enclosureTemperature(35, "enclosure temperature", 22.0, 32.0, 20, 1000, 40.0, 20.0);
+  generalSensor enclosureTemperature(35, "enclosure temperature", 22.0, 37.0, 20, 1000, 40.0, 20.0);
 
   //PIDextra(double aP, double aI, double aD, double aSetpoint, double amaxOutputNormal,double amaxOutputHigh, double errorOutput int aMode)
   PIDextras heaterValues(2.0, 96.0, 21.0, lidTemperature.setpoint, 40.0,45.0,10.0,1);
@@ -401,6 +401,7 @@ void PrintParametersToSerial()
     logBuffer = "";
   }
 
+  //Note that sensor.Index is advanced at the end of updateSensor, so the current index is 1 ahead of the most recently stored values
   int enclosureIndexA = (enclosureTemperature.index -1  + enclosureTemperature.historySize) % enclosureTemperature.historySize;
   int enclosureIndexB = (enclosureTemperature.index -1 - enclosureTemperature.slopeInterval + enclosureTemperature.historySize) % enclosureTemperature.historySize;
   int lidIndexA = (lidTemperature.index  -1 + lidTemperature.historySize) % lidTemperature.historySize;
@@ -411,21 +412,24 @@ void PrintParametersToSerial()
   logBuffer += String(enclosureTemperature.value, 2);
   logBuffer += "\t";
   logBuffer += String(lidTemperature.value, 2);
-  logBuffer += " [";
-  logBuffer += lidIndexA-1;
-  logBuffer += "]\t";
+  //logBuffer += " [";
+  //logBuffer += lidIndexA-1;
+  //logBuffer += "]\t";
+  logBuffer += "\t";
   logBuffer += String(enclosureTemperature.slope[enclosureIndexA], 3);
-  logBuffer += " [";
-  logBuffer += String(enclosureTemperature.history[enclosureIndexA],2);
-  logBuffer += ",";
-  logBuffer += String(enclosureTemperature.history[enclosureIndexB]);
-  logBuffer += "]\t";
+  //logBuffer += " [";
+  //logBuffer += String(enclosureTemperature.history[enclosureIndexA],2);
+  //logBuffer += ",";
+  //logBuffer += String(enclosureTemperature.history[enclosureIndexB]);
+  //logBuffer += "]\t";
+  logBuffer += "\t";
   logBuffer += String(lidTemperature.slope[lidIndexA], 3);
-  logBuffer += " [";
-  logBuffer += String(lidTemperature.history[lidIndexA]);
-  logBuffer += ",";
-  logBuffer += String(lidTemperature.history[lidIndexB],2);
-  logBuffer += "]\t";
+  //logBuffer += " [";
+  //logBuffer += String(lidTemperature.history[lidIndexA]);
+  //logBuffer += ",";
+  //logBuffer += String(lidTemperature.history[lidIndexB],2);
+  //logBuffer += "]\t";
+  logBuffer += "\t";
   logBuffer += String(lidTemperature.meanSquareError, 3);
   logBuffer += "\t";
   logBuffer += String(lidTemperature.setpoint, 2);
