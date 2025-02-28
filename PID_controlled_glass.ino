@@ -401,25 +401,30 @@ void PrintParametersToSerial()
     logBuffer = "";
   }
 
+  int enclosureIndexA = (enclosureTemperature.index -1  + enclosureTemperature.historySize) % enclosureTemperature.historySize;
+  int enclosureIndexB = (enclosureTemperature.index -1 - enclosureTemperature.slopeInterval + enclosureTemperature.historySize) % enclosureTemperature.historySize;
+  int lidIndexA = (lidTemperature.index  -1 + lidTemperature.historySize) % lidTemperature.historySize;
+  int lidIndexB = (lidTemperature.index  -1 - lidTemperature.slopeInterval + lidTemperature.historySize) % lidTemperature.historySize;
+
   logBuffer = "";
   logBuffer += "\t";
   logBuffer += String(enclosureTemperature.value, 2);
   logBuffer += "\t";
   logBuffer += String(lidTemperature.value, 2);
-  logBuffer += "\t";
-  logBuffer += String(enclosureTemperature.slope[enclosureTemperature.index-1], 3);
   logBuffer += " [";
-  logBuffer += String(enclosureTemperature.history[enclosureTemperature.index-1],2);
-  logBuffer += ",";
-  int currIndex = (enclosureTemperature.index - enclosureTemperature.slopeInterval + enclosureTemperature.historySize) % enclosureTemperature.historySize-1;
-  logBuffer += String(enclosureTemperature.history[currIndex]);
+  logBuffer += lidIndexA-1;
   logBuffer += "]\t";
-  logBuffer += String(lidTemperature.slope[lidTemperature.index-1], 3);
+  logBuffer += String(enclosureTemperature.slope[enclosureIndexA], 3);
   logBuffer += " [";
-  logBuffer += String(lidTemperature.history[lidTemperature.index-1]);
+  logBuffer += String(enclosureTemperature.history[enclosureIndexA],2);
   logBuffer += ",";
-  currIndex = (lidTemperature.index - lidTemperature.slopeInterval + lidTemperature.historySize) % lidTemperature.historySize-1;
-  logBuffer += String(lidTemperature.history[currIndex],3);
+  logBuffer += String(enclosureTemperature.history[enclosureIndexB]);
+  logBuffer += "]\t";
+  logBuffer += String(lidTemperature.slope[lidIndexA], 3);
+  logBuffer += " [";
+  logBuffer += String(lidTemperature.history[lidIndexA]);
+  logBuffer += ",";
+  logBuffer += String(lidTemperature.history[lidIndexB],2);
   logBuffer += "]\t";
   logBuffer += String(lidTemperature.meanSquareError, 3);
   logBuffer += "\t";
@@ -449,18 +454,19 @@ void PrintParametersToSerial()
 }
 
 void CheckGlassSetpoint()
+
 {
   // Current time in milliseconds since the program has been running
   int currentTimeMilliseconds = millis();
 
+  // Calculate gap from air temperature setpoint
   enclosureTemperature.deviation = enclosureTemperature.value - enclosureTemperature.setpoint;
-  //enclosureTemperature.deviation = enclosureTemperature.value - enclosureTemperature.valueSetpoint;
+
   lidThermistor.autoSetpointChange = 0;
 
   // If it has been long enough since the last glass setpoint update and the history array has enough data, check if the glass setpoint needs to be updated
   if ((currentTimeMilliseconds - lidTemperature.setpointLastUpdate) >= lidTemperature.setpointInterval && lidTemperature.historyFilled == true)
   {
-    // Calculate gap from air temperature setpoint
 
     // If the glass temperature has been stable and the air temperature is significantly higher than the air temperature setpoint, update the glass setpoint
     {
@@ -471,7 +477,6 @@ void CheckGlassSetpoint()
       if (enclosureTemperature.deviation<0) deviationDirection = 1.0;
 
       // Very basic proportional control of glass temperature relative to air temp
-      
       if( abs(enclosureTemperature.deviation) > 0.4){
         // Reduce the glass setpoint
         lidThermistor.autoSetpointChange = deviationDirection * 2.0;
@@ -508,10 +513,11 @@ void CheckGlassSetpoint()
       // Update the last glass setpoint update time to the current time
       lidTemperature.setpointLastUpdate = currentTimeMilliseconds;
 
-      // Send a message to the serial
-      msgBuffer += "Glass Setpoint updated to ";
-      msgBuffer += String(lidTemperature.setpoint);
-
+      if (lidThermistor.autoSetpointChange != 0.0) {
+        // Send a message to the serial
+        msgBuffer += "Glass Setpoint updated to ";
+        msgBuffer += String(lidTemperature.setpoint);
+      }
     }
   }
 }

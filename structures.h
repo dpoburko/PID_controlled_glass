@@ -139,6 +139,12 @@ struct generalSensor {
       slope = new double[historySize];
       time = new double[historySize];
       errorHistory = new double[historySize];
+      for (int i=0;i<historySize;i++) {
+        history[i] = 0;
+        slope[i] = 0;
+        time[i] = millis();
+        errorHistory[i] = 0;
+      }
       setpointReached = false;
       setpointNoted = false; 
       historyFilled = false;
