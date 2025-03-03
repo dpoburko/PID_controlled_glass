@@ -196,7 +196,7 @@ void setup()
   Serial.println(lidTemperature.value, 2);
 
    // Variable to store when the last glass setpoint update happened
-   lidTemperature.setpointInterval = 150000;
+   lidTemperature.setpointInterval = 30000;
    lidTemperature.setpointLastUpdate = 0;
 
   startUpTime = millis();
@@ -480,27 +480,39 @@ void CheckGlassSetpoint()
       if (enclosureTemperature.deviation>=0) deviationDirection = -1.0;
       if (enclosureTemperature.deviation<0) deviationDirection = 1.0;
 
-      // Very basic proportional control of glass temperature relative to air temp
-      if( abs(enclosureTemperature.deviation) > 0.4){
-        // Reduce the glass setpoint
-        lidThermistor.autoSetpointChange = deviationDirection * 2.0;
+      double deviations[] = {1.0,0.7,  0.4 ,0.2 ,0.15,0.1,0};
+      double corrections[] = {2,1.75, 1.5 ,1.25,0.50,0.25,0};
+      int nDeviations = sizeof(deviations) / sizeof(deviations[0]);
+      
+      for (int d=0;d<nDeviations;d++) {
+        if( abs(enclosureTemperature.deviation) > deviations[d]){
+          lidThermistor.autoSetpointChange = deviationDirection * corrections[d];
+          d = nDeviations;
+        }
+        
       }
-      else if( abs(enclosureTemperature.deviation) > 0.2){
-        // Reduce the glass setpoint
-        lidThermistor.autoSetpointChange = deviationDirection * 1.5;
-      }
-      else if( abs(enclosureTemperature.deviation) > 0.15){
-        // Reduce the glass setpoint
-        lidThermistor.autoSetpointChange = deviationDirection * 0.75;
-      }
-      else if( abs(enclosureTemperature.deviation) > 0.10){
-        // Reduce the glass setpoint
-        lidThermistor.autoSetpointChange = deviationDirection * 0.25;
-      }  
-      else {
-        // Reduce the glass setpoint
-        lidThermistor.autoSetpointChange = 0.0;
-      }  
+    
+//      // Very basic proportional control of glass temperature relative to air temp
+//      if( abs(enclosureTemperature.deviation) > 0.4){
+//        // Reduce the glass setpoint
+//        lidThermistor.autoSetpointChange = deviationDirection * 2.0;
+//      }
+//      else if( abs(enclosureTemperature.deviation) > 0.2){
+//        // Reduce the glass setpoint
+//        lidThermistor.autoSetpointChange = deviationDirection * 1.5;
+//      }
+//      else if( abs(enclosureTemperature.deviation) > 0.15){
+//        // Reduce the glass setpoint
+//        lidThermistor.autoSetpointChange = deviationDirection * 0.75;
+//      }
+//      else if( abs(enclosureTemperature.deviation) > 0.10){
+//        // Reduce the glass setpoint
+//        lidThermistor.autoSetpointChange = deviationDirection * 0.25;
+//      }  
+//      else {
+//        // Reduce the glass setpoint
+//        lidThermistor.autoSetpointChange = 0.0;
+//      }  
 
       //increment the deviation of glassSetpoint from the most recent user-defined glassSetpoint
       lidThermistor.cummSetpointChange += lidThermistor.autoSetpointChange;
