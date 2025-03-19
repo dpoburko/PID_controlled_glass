@@ -44,7 +44,7 @@
 // PID CONTROLLER VARIABLES
 // *************************************************************************************************************************************
 //generalSensor thisSensor(int arraySize, "name", value, setpoint, slopeInterval, slopeUnits(), upperLimit, lowerLimit) : 
-  generalSensor lidTemperature(35, "lid temperature",22.0,52.0,10,1000,65.0,20.0);
+  generalSensor lidTemperature(35, "lid temperature",22.0,48.0,10,1000,65.0,20.0);
  
   generalSensor enclosureTemperature(35, "enclosure temperature", 22.0, 37.0, 20, 1000, 40.0, 20.0);
 
