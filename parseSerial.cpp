@@ -165,7 +165,7 @@
         int nd = atol(newDelay);
         heaterPID->SetSampleTime(nd);
         msgBuffer +=" PID interval now ";
-        msgBuffer += String(newDelay, 2);
+        msgBuffer += String(nd, 2);
       }
       else if (serialMain->incoming[1] == 't') 
       {

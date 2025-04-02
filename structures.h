@@ -2,25 +2,7 @@
 #define structures_H
 #include "Arduino.h"
 
-//Setting up universal access to memory check. 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
-int freeMemory();  // Declaration
-
-#ifdef __cplusplus
-}
-#endif
-
-//This is the SAMD21 method
-//extern "C" int freeMemory();
-extern "C" char *sbrk(int i);
-
-int freeMemory() {
-  char stack_dummy = 0;
-  return &stack_dummy - sbrk(0);
-}
 
 // must be intialized with the maxlength (e.g. serialMsg serial(25);)
 struct serialMsg{
