@@ -45,7 +45,7 @@
           Serial.println("   Pslnnn - update glassSetpoint as nn.n degrees");
           Serial.println("   Psennn - update enclosureTemperature->valueSetpoint as nn.n degrees");
           Serial.println("   Ponnn. - manually set heaterValues.outputToDevice (only usual in manualPIDMode mode");
-          Serial.println("   Plmnnn. - updated agressive PWM output (high max)");
+          Serial.println("   Plmnnn. - updated agressive PWM output (high max)");  e.g. 47 is 047
           Serial.println("   Plnnnn. - updated holding (normal max) PWM");
           Serial.println("   Ptpnnn. - heaterPID->SetTunings(nnn,iii,ddd)");
           Serial.println("   Ptinnn. - heaterPID->SetTunings(ppp,nnn,ddd)");
@@ -154,9 +154,17 @@
         else if (serialMain->incoming[2] == 'n') 
         {
           char holding[3] = {serialMain->incoming[3],serialMain->incoming[4],serialMain->incoming[5]};
-          heaterValues->maxOutputNormal = atof(holding);
-          msgBuffer += " heaterValues.maxOutputNormal now";
-          msgBuffer += String(heaterValues->maxOutputNormal, 2);     
+          float safetyCheck = atof(holding);
+          if (safetyCheck<=50.0) {
+            heaterValues->maxOutputNormal = atof(holding);
+            msgBuffer += " heaterValues.maxOutputNormal now";
+            msgBuffer += String(heaterValues->maxOutputNormal, 2);     
+
+          } else {
+            heaterValues->maxOutputNormal = 50.0;
+            msgBuffer += " max firmware heaterValues->maxOutputNormal = 50.0";
+          }
+          
         }
       }
       else if (serialMain->incoming[1] == 'd') 
