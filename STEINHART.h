@@ -3,6 +3,7 @@
 #define STEINHART_H
 
 #include "Arduino.h"
+#include "structures.h"
 
 #define LIBRARY_VERSION 1.0.0
 
