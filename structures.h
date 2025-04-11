@@ -66,22 +66,9 @@ struct thermistor
 {
   String name = "name";
   byte pin; 
-  //double temperature;
-  //double maxTemperature;
-  //double prevTemperature;
-  //double prev2Temperature;
-  //double setPoint;
-  //bool setpointReached = false;
-  //bool setpointNoted = false;
-  //double deviation;
-  //double history[historyArraySize];
-  //bool historyFilled = false;
-  //double slope;
-  //int slopeInterval;
   int maxAutoIncrease; // maximum that set point can be increased when auto adapting to achieve a temp of another thermistor
   double cummSetpointChange; // cummulative automated changes from last used-defined setpoint
   double autoSetpointChange;
-  
   double rNominal;
   double rSeries;
   double tNominal; // nominal temperature
@@ -97,11 +84,10 @@ struct thermistor
   
 };
 
-//OK. To allow optional definition of default values at instantiation, the constructor needs to have all those possilbe arguments with default values that are then passed to 
-//structure elements in the assignment list
-
-// Initialization template
-//generalSensor thisSensor(int arraySize, "name", value, setpoint, slopeInterval, slopeUnits(), upperLimit, lowerLimit) : 
+/* 
+ *  To allow optional definition of default values at instantiation, the constructor needs to have all 
+ *  those possilbe arguments with default values that are then passed to structure elements in the assignment list
+*/
 struct generalSensor {
     String name;
     double value;
@@ -182,6 +168,7 @@ struct PIDextras {
   double outputFromPID;
   double outputToDevice;
   double prevOutput;
+  double maxInput; //e.g.voltage input to MOSFET, max flow rate of a gas etc.
   bool newValue;
 
   PIDextras(double aP, double aI, double aD, double aSetpoint, double amaxOutputNormal,double amaxOutputHigh,double aErrorOutput, int aMode):
@@ -195,16 +182,7 @@ struct PIDextras {
     maxOutputCurrent = maxOutputNormal;
   }
 };
-
-//Deprecated
-//struct heater
-//{
-//  double output;
-//  double prevOutput;
-//  double errorOutput;
-//  char name[20];
-//}
-  
+ 
 //define errorCode array size here
 struct errorCode 
 {
@@ -222,12 +200,23 @@ struct errorCode
   unsigned long timeout; // not sure what this will be used for
 };
 
-struct timers {
-  unsigned long start;
-  unsigned long duration;
-  bool active;
-  unsigned long counter;
-  String name;
-};
+  //a generic timer structure
+  // instantiate as timers myTimer("count down", <duration in ms>);
+  struct timers {
+    char name[30];
+    unsigned long start;
+    unsigned long duration;
+    bool active;
+    unsigned long counter;
+    //constructor
+    timers(const char*  tempName = "timer", unsigned long tempDuration = 10000, bool tempActive = false  ): 
+                   duration(tempDuration),active(tempActive) 
+    {
+      strncpy(name, tempName, sizeof(name) - 1);  // Safe copy
+      name[sizeof(name) - 1] = '\0';              // Ensure null-termination
+      counter = 0;
+      start = 0;
+    }
+  };
 
 #endif

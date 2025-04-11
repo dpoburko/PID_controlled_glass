@@ -4,7 +4,7 @@
 #include "structures.h"
 
 //The errorCodes array will be global using the extern declaration. It is compiled and memory allocated before classes or constructors
-const int numberOfErrorCodes = 6;
+const int numberOfErrorCodes = 7;
 
 extern errorCode errorCodes[numberOfErrorCodes]; 
 

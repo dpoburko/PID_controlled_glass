@@ -84,7 +84,7 @@ const double resistor2Coefficient = 983;
 // *************************************************************************************************************************************
 
 // Variable to store the voltage of the glass read by the thermistor
-double thermistorVoltage = 0.0; ///outdated????
+//double thermistorVoltage = 0.0; ///outdated????
 
 // Set how often glass voltage will be read (in milliseconds)
 int glassVoltageReadingInterval = 2000;
@@ -112,7 +112,7 @@ bool headersPrinted = false;
 // Indicate the voltage of the dev board digital outputs
 const double boardVoltageOut = 5.0; //Arduino Uno is 5V, Adalogger is 3.3V
 
-// Variable to store buck converter voltage
+// Variable to store buck converter voltage for input to lid heater
 double buckConverterVoltage = 0;
 
 // Set number of samples to take in order to get an average of the voltage data (needs to be a double for average to have decimals)
@@ -137,13 +137,19 @@ PID heaterPID(&lidTemperature.value, &heaterValues.outputFromPID, &lidTemperatur
 // looks pretty easy! Just need time to tune the PID values. 
 //PID enclosurePID(&enclosureTemperature.value, &lidTemperature.setpoint,&enclosureTemperature.setpoint, enclosureValues.P, enclosureValues.I, enclosureValues.D, DIRECT);
 
-
 //instantiate the errorCheck library with references to needed variables. Note that errorCodes is a global variable, so does not need to be transfered.
 //250224 - I am not convinced that errorCheck and parseSerial instantiation don't need to be references
-
 errorCheck errorCheck(msgBuffer,errorBuffer, lidTemperature, heaterValues, startUpTime);
 
 parseSerial parseSerial(serialMain, heaterPID, heaterValues, msgBuffer, lidTemperature, enclosureTemperature);
+
+//optional looping through a range of PID values
+timers pidTimer("pid cycler",600000); // (name, duration in ms)
+int pidIndex = 0;
+int nPidIndices = 0;
+double Ps[] = {2.0,2.0,2.0,2.0,2.0,2.0,1.5,1.5,1.5,1.5,1.5,1.5};
+double Is[] = {96.0,96.0,96.0,96.0,96.0,96.0,96.0,96.0,96.0,96.0,96.0,96.0};
+double Ds[] = {21.0,10.0,50.0,100.0,150.0,200.0,21.0,10.0,50.0,100.0,150.0,200.0};
 
 // *************************************************************************************************************************************
 // SETUP
@@ -175,9 +181,6 @@ void setup()
   // Initialize PID (automaticPIDMode mode)
   heaterPID.SetMode(AUTOMATIC); //note that AUTOMATIC is inherited as #define from the PID library.
 
-  // Link PID setpoint with glass setpoint
-  //PIDSetpoint = glassSetpoint;   //vestigial, not longer used
-
   // Set up PID output limits  
   heaterPID.SetOutputLimits(0, heaterValues.maxOutputHigh); 
   heaterPID.SetSampleTime(glassVoltageReadingInterval); 
@@ -199,10 +202,16 @@ void setup()
   Serial.println(lidTemperature.value, 2);
 
    // Variable to store when the last glass setpoint update happened
-   lidTemperature.setpointInterval = 30000;
-   lidTemperature.setpointLastUpdate = 0;
+  lidTemperature.setpointInterval = 30000;
+  lidTemperature.setpointLastUpdate = 0;
+
+  heaterValues.maxInput = buckConverterVoltage;
 
   startUpTime = millis();
+
+  pidTimer.active = true;
+  pidTimer.start = millis();
+  
 }
 
 // *************************************************************************************************************************************
@@ -219,7 +228,8 @@ void loop()
     steinhardt2.read();
 
     // Get the voltage from the tunable buck converter (what do we do with this?)
-    GetBuckConverterVoltage(buckConverterVoltage);
+    //GetBuckConverterVoltage(buckConverterVoltage); 
+    GetBuckConverterVoltage(heaterValues.maxInput); //by storing the current voltage in this structure, it become accessible to errorCheck
 
     // Check to make sure the glass temperature data point makes sense, and reassign the value if necessary
     //250123 - DP revised this function to work for any generalSensor structure
@@ -275,6 +285,18 @@ void loop()
     	heaterValues.outputToDevice = heaterValues.outputFromPID;
     	// handoff the PID's intended output to the heater structure
     	// Perform a series of tests on thermistor reading and temperature vs. setpoint and over time
+  
+      unsigned long thisMillis = millis();
+      if(pidTimer.active && (thisMillis - pidTimer.start) > pidTimer.duration) {
+          heaterValues.P = Ps[pidIndex];
+          heaterValues.I = Is[pidIndex];
+          heaterValues.D = Ds[pidIndex];
+          heaterPID.SetTunings(Ps[pidIndex],Is[pidIndex],Ds[pidIndex]);
+          pidIndex++;
+          if (pidIndex>11) pidIndex=0;
+          pidTimer.start = thisMillis;
+      } 
+
 
      //error check will likely neeed a bunch of structures passed to it: buffers, lidTemperature, enclosureTemperature, CO2 eventually, heaterValues
      errorCheck.update();
@@ -352,7 +374,7 @@ void loop()
     parseSerial.parse();
   }
 
-//Glass and air temp are logged in history array, so most references to historical values will use sensor.history[] 
+  //Glass and air temp are logged in history array, so most references to historical values will use sensor.history[] 
   lidTemperature.prevValue = lidTemperature.value;
   enclosureTemperature.prevValue = enclosureTemperature.value;
 
@@ -415,23 +437,10 @@ void PrintParametersToSerial()
   logBuffer += String(enclosureTemperature.value, 2);
   logBuffer += "\t";
   logBuffer += String(lidTemperature.value, 2);
-  //logBuffer += " [";
-  //logBuffer += lidIndexA-1;
-  //logBuffer += "]\t";
   logBuffer += "\t";
   logBuffer += String(enclosureTemperature.slope[enclosureIndexA], 3);
-  //logBuffer += " [";
-  //logBuffer += String(enclosureTemperature.history[enclosureIndexA],2);
-  //logBuffer += ",";
-  //logBuffer += String(enclosureTemperature.history[enclosureIndexB]);
-  //logBuffer += "]\t";
   logBuffer += "\t";
   logBuffer += String(lidTemperature.slope[lidIndexA], 3);
-  //logBuffer += " [";
-  //logBuffer += String(lidTemperature.history[lidIndexA]);
-  //logBuffer += ",";
-  //logBuffer += String(lidTemperature.history[lidIndexB],2);
-  //logBuffer += "]\t";
   logBuffer += "\t";
   logBuffer += String(lidTemperature.meanSquareError, 3);
   logBuffer += "\t";
@@ -441,7 +450,8 @@ void PrintParametersToSerial()
   logBuffer += "\t";
   logBuffer += String(heaterValues.outputToDevice);
   logBuffer += "\t";
-  logBuffer += String(buckConverterVoltage, 2);
+  //logBuffer += String(buckConverterVoltage, 2);
+  logBuffer += String(heaterValues.maxInput,2);
   logBuffer += "\t";
   logBuffer += String(heaterValues.P);
   logBuffer += "/";
@@ -494,28 +504,6 @@ void CheckGlassSetpoint()
         }
         
       }
-    
-//      // Very basic proportional control of glass temperature relative to air temp
-//      if( abs(enclosureTemperature.deviation) > 0.4){
-//        // Reduce the glass setpoint
-//        lidThermistor.autoSetpointChange = deviationDirection * 2.0;
-//      }
-//      else if( abs(enclosureTemperature.deviation) > 0.2){
-//        // Reduce the glass setpoint
-//        lidThermistor.autoSetpointChange = deviationDirection * 1.5;
-//      }
-//      else if( abs(enclosureTemperature.deviation) > 0.15){
-//        // Reduce the glass setpoint
-//        lidThermistor.autoSetpointChange = deviationDirection * 0.75;
-//      }
-//      else if( abs(enclosureTemperature.deviation) > 0.10){
-//        // Reduce the glass setpoint
-//        lidThermistor.autoSetpointChange = deviationDirection * 0.25;
-//      }  
-//      else {
-//        // Reduce the glass setpoint
-//        lidThermistor.autoSetpointChange = 0.0;
-//      }  
 
       //increment the deviation of glassSetpoint from the most recent user-defined glassSetpoint
       lidThermistor.cummSetpointChange += lidThermistor.autoSetpointChange;
