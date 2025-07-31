@@ -1,6 +1,17 @@
 #ifndef structures_H
 #define structures_H
-#include "Arduino.h"
+#include <Arduino.h>
+
+//Defined values
+
+// Analog input for measuring the voltage delivered to the glass heater via a 1/10 voltage divider
+#define VOLTMETERPIN A2
+// PWM PID output pin to MOSFET (adjust as needed)
+#define PWMPINOUT 9
+// Thermistor 1 pin
+#define THERMISTOR1PIN A0
+// Thermistor 2 pin
+#define THERMISTOR2PIN A4
 
 
 
