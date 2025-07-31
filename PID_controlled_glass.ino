@@ -490,7 +490,7 @@ void CheckGlassSetpoint()
       if (enclosureTemperature.deviation>=0) deviationDirection = -1.0;
       if (enclosureTemperature.deviation<0) deviationDirection = 1.0;
 
-      double deviations[] = {1.0,0.7,  0.4 ,0.2 ,0.15,0.1,0};
+      double deviations[] = {1.0,0.7, 0.4 ,0.2 ,0.15,0.1,0};
       double corrections[] = {2,1.75, 1.5 ,1.25,0.50,0.25,0};
       int nDeviations = sizeof(deviations) / sizeof(deviations[0]);
       
@@ -531,6 +531,7 @@ void CheckGlassSetpoint()
 // 1. the erroneous check needs to come before sensorUpdate and the values are logged - Done
 // 2. the erroneous check should work on a single general sensor, i.e. lidTemperature or enclosureTemperature
 // 3. it should include a double Tolerance to identify erroneous readings
+//%%%%% Need to add increased tolerance depending on current slope. When heating, it needs to be more generous.
 
 void RemoveErroneousSensorReadings(generalSensor &sensor, double tolerance)
 {

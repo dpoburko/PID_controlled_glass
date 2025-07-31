@@ -45,7 +45,7 @@
           Serial.println("   Pslnnn - update glassSetpoint as nn.n degrees");
           Serial.println("   Psennn - update enclosureTemperature->valueSetpoint as nn.n degrees");
           Serial.println("   Ponnn. - manually set heaterValues.outputToDevice (only usual in manualPIDMode mode");
-          Serial.println("   Plmnnn. - updated agressive PWM output (high max)");  e.g. 47 is 047
+          Serial.println("   Plmnnn. - updated agressive PWM output (high max)"); // e.g. 47 is 047
           Serial.println("   Plnnnn. - updated holding (normal max) PWM");
           Serial.println("   Ptpnnn. - heaterPID->SetTunings(nnn,iii,ddd)");
           Serial.println("   Ptinnn. - heaterPID->SetTunings(ppp,nnn,ddd)");
