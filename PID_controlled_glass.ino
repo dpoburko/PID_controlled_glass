@@ -26,6 +26,7 @@
 // PINS
 // *************************************************************************************************************************************
 
+// ~~~~~ moved to structures.h for global scoping ~~~~~
 // // Analog input for measuring the voltage delivered to the glass heater via a 1/10 voltage divider
 // #define VOLTMETERPIN A2
 // // PWM PID output pin to MOSFET (adjust as needed)
@@ -83,9 +84,6 @@ const double resistor2Coefficient = 983;
 // *************************************************************************************************************************************
 // GLASS/THERMISTOR VARIABLES
 // *************************************************************************************************************************************
-
-// Variable to store the voltage of the glass read by the thermistor
-//double thermistorVoltage = 0.0; ///outdated????
 
 // Set how often glass voltage will be read (in milliseconds)
 int glassVoltageReadingInterval = 2000;
@@ -231,8 +229,7 @@ void loop()
 
     // Check to make sure the glass temperature data point makes sense, and reassign the value if necessary
     //250123 - DP revised this function to work for any generalSensor structure
-    //RemoveErroneousSensorReadings(lidTemperature,0.25);
-    //RemoveErroneousSensorReadings(enclosureTemperature,0.25);
+
     RemoveErroneousSensorReadings(lidTemperature,0.25,msgBuffer);
     RemoveErroneousSensorReadings(enclosureTemperature,0.25,msgBuffer);
 
@@ -363,7 +360,6 @@ void loop()
   if ((currentTimeMilliseconds - lastSerialDisplay) >= serialDisplayInterval) 
   {
     // Print buck converter voltage, glass temperature, and PWMOutput to serial
-    //PrintParametersToSerial();
     PrintParametersToSerial(enclosureTemperature, lidTemperature, heaterValues, msgBuffer, errorBuffer, logBuffer, nLogged);
 
     // Log the current time in milliseconds as the most recent time in which the parameters were printed to the serial
