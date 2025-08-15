@@ -154,7 +154,7 @@ void setup()
 
   // Repeat for thermistor 2
   steinhardt2.setSampleTime(glassVoltageReadingInterval);
-  enclosureTemperature.prevValue = enclosureTemperature.value;
+  //enclosureTemperature.prevValue = enclosureTemperature.value;
 
   // Print initialization message and temperature to serial
   Serial.print("   ===== PID controlled glass heater =====================");
@@ -324,8 +324,8 @@ void loop()
   }
 
   //Glass and air temp are logged in history array, so most references to historical values will use sensor.history[] 
-  lidTemperature.prevValue = lidTemperature.value;
-  enclosureTemperature.prevValue = enclosureTemperature.value;
+  //lidTemperature.prevValue = lidTemperature.value;
+  //enclosureTemperature.prevValue = enclosureTemperature.value;
 
   // Delay determines how often loop repeats
   delay(20);   //need to get rid of this!!!
