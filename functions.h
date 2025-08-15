@@ -143,14 +143,14 @@ void sensorUpdate(generalSensor& sensor) {
 
   //add the value to the array and note the time that value is added to the history in millis
   sensor.history[sensor.index] = sensor.value;
+  sensor.prevValue = sensor.history[(sensor.index - 1 + sensor.historySize)%sensor.historySize]; 
   sensor.deviation = sensor.value - sensor.setpoint;
   sensor.time[sensor.index] = millis();
   if (sensor.value < sensor.minimum) sensor.minimum = sensor.value;
   if (sensor.value > sensor.maximum) sensor.maximum = sensor.value;
 
   //determine slope and append to slope history
-  
-  if (sensor.historyFilled) {
+    if (sensor.historyFilled) {
     
     //determine slope
     sensor.slope[sensor.index] = (sensor.value - sensor.history[(sensor.index - sensor.slopeInterval + sensor.historySize) % sensor.historySize]) / 
