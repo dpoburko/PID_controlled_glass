@@ -46,8 +46,7 @@
 // PID CONTROLLER VARIABLES
 // *************************************************************************************************************************************
 //generalSensor thisSensor(int arraySize, "name", value, setpoint, slopeInterval, slopeUnits(), upperLimit, lowerLimit) : 
-  generalSensor lidTemperature(35, "lid temperature",22.0,48.0,10,1000,65.0,20.0);
- 
+  generalSensor lidTemperature(35, "lid temperature",22.0,57.0,10,1000,65.0,20.0);
   generalSensor enclosureTemperature(35, "enclosure temperature", 22.0, 37.0, 20, 1000, 40.0, 20.0);
 
   //PIDextra(double aP, double aI, double aD, double aSetpoint, double amaxOutputNormal,double amaxOutputHigh, double errorOutput int aMode)
@@ -93,7 +92,7 @@ int glassVoltageReadingInterval = 2000;
 // *************************************************************************************************************************************
 
 //Initialize serialMsg
-serialMsg serialMain(23); //hold buffer and variables related to serial monitor messages
+serialMsg serialMain(60); //hold buffer and variables related to serial monitor messages
 
 // How long to wait before displaying information on the serial
 int serialDisplayInterval = 2000;

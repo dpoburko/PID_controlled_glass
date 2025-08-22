@@ -13,8 +13,6 @@
 // Thermistor 2 pin
 #define THERMISTOR2PIN A4
 
-
-
 // must be intialized with the maxlength (e.g. serialMsg serial(25);)
 struct serialMsg{
   int size;
@@ -88,7 +86,7 @@ struct thermistor
   thermistor(String thisName, byte thisPin, double thisrNominal = 10000, double thisrSeries = 9985, double thistNominal = 25.0, double thisCoef = 3435) :
    name(thisName), pin(thisPin), rNominal(thisrNominal), rSeries(thisrSeries), tNominal(thistNominal), bCoefficient(thisCoef)
   {
-    maxAutoIncrease = 5;    
+    maxAutoIncrease = 7;    
     cummSetpointChange = 0; 
     autoSetpointChange = 0; 
   }

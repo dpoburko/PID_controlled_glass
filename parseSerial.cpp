@@ -26,7 +26,7 @@
       if (serialMain->length <= serialMain->size) 
       {
         // If user inputted P, T, or E, go to parse function to read the next message inputted
-        if (serialMain->incoming[0] == 'P' || serialMain->incoming[0] == 'T'|| serialMain->incoming[0] == 'S'|| serialMain->incoming[0] == 'E' || serialMain->incoming[0] == 'L') 
+        if (serialMain->incoming[0] == 'P' || serialMain->incoming[0] == 'T'|| serialMain->incoming[0] == 'S'|| serialMain->incoming[0] == 'E' || serialMain->incoming[0] == 'L'|| serialMain->incoming[0] == 'N') 
         {
           // Go to parse function to read the next message inputted
           parsePIDCmd();
@@ -51,6 +51,7 @@
           Serial.println("   Ptinnn. - heaterPID->SetTunings(ppp,nnn,ddd)");
           Serial.println("   Ptdnnn. - heaterPID->SetTunings(ppp,iii,nnn)");
           Serial.println("   Pdnnnn. - call heaterPID->SetSampleTime(nnnn) & STEINHART::setSampleTime(nnnn)");
+          Serial.println("   N:xxxxx - add brief note to message log");
           Serial.println("   L - List column headers");
           Serial.println("   St - Show temperature history in serial monitor");
           //Serial.println("   Se - Show mse history in serial monitor");
@@ -238,6 +239,23 @@
       }
       Serial.print(", index = ");
       Serial.println(enclosureTemperature->index);
+    } 
+
+    //Add a note to the msg buffer
+    else if(serialMain->incoming[0] == 'N' && serialMain->incoming[1] == ':' )
+    {
+      
+      msgBuffer += " Note:  ";
+      // skip optional space after the colon
+      int i = 2;
+      if (i < serialMain->length && serialMain->incoming[i] == ' ') i++;
+    
+      for (; i < serialMain->length; ++i) {
+        char c = serialMain->incoming[i];
+        if (c == '\r' || c == '\n') break;   // stop at line ending if present
+        msgBuffer += c;
+      }
+      
     } 
     else if(serialMain->incoming[0] == 'E' && serialMain->incoming[1] == 'a' )
     {
