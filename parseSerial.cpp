@@ -5,8 +5,8 @@
 #include <PID_v1.h>
 
 
-  parseSerial::parseSerial(serialMsg& aSerial, PID& aHeaterPID, PIDextras& aHeaterValues ,String& aMsgBuffer, generalSensor& aTemp, generalSensor& bTemp)
-  :  serialMain(&aSerial), heaterPID(&aHeaterPID), heaterValues(&aHeaterValues), msgBuffer(aMsgBuffer),lidTemperature(&aTemp), enclosureTemperature(&bTemp) { }
+  parseSerial::parseSerial(serialMsg& aSerial, PID& aHeaterPID, PIDextras& aHeaterValues ,String& aMsgBuffer, generalSensor& aTemp, generalSensor& bTemp, int& aSerialDisplayInterval)
+  :  serialMain(&aSerial), heaterPID(&aHeaterPID), heaterValues(&aHeaterValues), msgBuffer(aMsgBuffer),lidTemperature(&aTemp), enclosureTemperature(&bTemp), serialDisplayInterval(&aSerialDisplayInterval)  { }
 
   /*
    * Things that need to be passed
@@ -55,6 +55,7 @@
           Serial.println("   St - Show temperature history in serial monitor");
           //Serial.println("   Se - Show mse history in serial monitor");
           Serial.println("   Sa - Show air temp history in serial monitor");
+          Serial.println("   Tinnn - serial display timer to nnn seconds");
           Serial.println("   Eaxn - Silence/override error x and ignore for n minutes ");
           Serial.println("   Egxn - update error x gracePeriod to n minutes");
           Serial.println("   >>>>>>>>>>>>>><<<<<<<<<<<<<<<<");
@@ -238,6 +239,19 @@
       }
       Serial.print(", index = ");
       Serial.println(enclosureTemperature->index);
+    } 
+    else if(serialMain->incoming[0] == 'T' && serialMain->incoming[1] == 'i' )
+    {
+      char tmr[] = {
+        serialMain->incoming[2],
+        serialMain->incoming[3],
+        serialMain->incoming[4],
+        '\0'  // Null terminator
+      };
+
+      int seconds = atoi(tmr);                // Convert to int
+      *serialDisplayInterval = seconds * 1000; // Convert to milliseconds
+          
     } 
     else if(serialMain->incoming[0] == 'E' && serialMain->incoming[1] == 'a' )
     {

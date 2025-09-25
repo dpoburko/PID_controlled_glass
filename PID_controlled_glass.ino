@@ -105,7 +105,7 @@ PID heaterPID(&lidTemperature.value, &heaterValues.outputFromPID, &lidTemperatur
 //instantiate the errorCheck library with references to needed variables. Note that errorCodes is a global variable, so does not need to be transfered.
 errorCheck errorCheck(msgBuffer,errorBuffer, lidTemperature, heaterValues, startUpTime);
 
-parseSerial parseSerial(serialMain, heaterPID, heaterValues, msgBuffer, lidTemperature, enclosureTemperature);
+parseSerial parseSerial(serialMain, heaterPID, heaterValues, msgBuffer, lidTemperature, enclosureTemperature, serialDisplayInterval);
 
 //optional looping through a range of PID values
 timers pidTimer("pid cycler",600000); // (name, duration in ms)

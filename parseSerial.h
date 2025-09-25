@@ -13,7 +13,7 @@ class parseSerial {
   
 
   public:
-    parseSerial(serialMsg& aSerial, PID& aHeaterPID, PIDextras& aHeaterValues, String& aMsgBuffer, generalSensor& aTemp, generalSensor& bTemp);
+    parseSerial(serialMsg& aSerial, PID& aHeaterPID, PIDextras& aHeaterValues, String& aMsgBuffer, generalSensor& aTemp, generalSensor& bTemp, int& aSerialDisplayInterval);
     void parse();
       
   private:
@@ -26,6 +26,7 @@ class parseSerial {
     String& msgBuffer;
     generalSensor* lidTemperature;
     generalSensor* enclosureTemperature;
+    int* serialDisplayInterval;
 };
 
 
