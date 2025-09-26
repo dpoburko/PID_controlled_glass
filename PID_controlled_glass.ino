@@ -36,11 +36,11 @@
 // PID CONTROLLER VARIABLES
 // *************************************************************************************************************************************
 //generalSensor thisSensor(int arraySize, "name", value, setpoint, slopeInterval, slopeUnits(), upperLimit, lowerLimit) : 
-  generalSensor lidTemperature(35, "lid temperature",22.0,48.0,10,1000,65.0,20.0);
+  generalSensor lidTemperature(35, "lid temperature",22.0,58.0,10,1000,65.0,20.0);
   generalSensor enclosureTemperature(35, "enclosure temperature", 22.0, 37.0, 20, 1000, 40.0, 20.0);
 
 //PIDextra(double aP, double aI, double aD, double aSetpoint, double amaxOutputNormal,double amaxOutputHigh, double errorOutput int aMode)
-  PIDextras heaterValues(2.0, 96.0, 21.0, lidTemperature.setpoint, 40.0,45.0,10.0,1);
+  PIDextras heaterValues(2.0, 96.0, 21.0, lidTemperature.setpoint, 50.0,60.0,10.0,1);
 
 String errorBuffer;
 String msgBuffer;
@@ -170,7 +170,7 @@ void setup()
 
   startUpTime = millis();
 
-  pidTimer.active = true;
+  pidTimer.active = false;
   pidTimer.start = millis();
   
 }

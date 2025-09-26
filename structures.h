@@ -88,7 +88,7 @@ struct thermistor
   thermistor(String thisName, byte thisPin, double thisrNominal = 10000, double thisrSeries = 9985, double thistNominal = 25.0, double thisCoef = 3435) :
    name(thisName), pin(thisPin), rNominal(thisrNominal), rSeries(thisrSeries), tNominal(thistNominal), bCoefficient(thisCoef)
   {
-    maxAutoIncrease = 5;    
+    maxAutoIncrease = 10;    
     cummSetpointChange = 0; 
     autoSetpointChange = 0; 
   }
