@@ -91,6 +91,12 @@ void CheckGlassSetpoint(generalSensor &enclosureTemperature, generalSensor &lidT
 
       lidTemperature.setpoint += lidThermistor.autoSetpointChange;
 
+      if (lidTemperature.setpoint > lidTemperature.upperLimit ) {
+        lidTemperature.setpoint = lidTemperature.upperLimit;
+        lidThermistor.cummSetpointChange = lidThermistor.maxAutoIncrease;
+        lidThermistor.autoSetpointChange = 0;
+      }
+
       // Update the last glass setpoint update time to the current time
       lidTemperature.setpointLastUpdate = currentTimeMilliseconds;
 
