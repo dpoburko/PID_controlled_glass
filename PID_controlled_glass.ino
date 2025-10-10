@@ -91,6 +91,10 @@ double buckConverterVoltage = 0;
 // Data logging
 uint16_t nLogged = 0;
 
+// Boolean toggle to enable/disalbe CheckGlassSetPoitn
+bool doCheckGlass = true;
+
+
 // *************************************************************************************************************************************
 // CONSTRUCTORS
 // *************************************************************************************************************************************
@@ -103,7 +107,7 @@ STEINHART steinhardt2(enclosureThermistor.pin, &enclosureTemperature.value, encl
 PID heaterPID(&lidTemperature.value, &heaterValues.outputFromPID, &lidTemperature.setpoint, heaterValues.P, heaterValues.I, heaterValues.D, DIRECT);
 
 //instantiate the errorCheck library with references to needed variables. Note that errorCodes is a global variable, so does not need to be transfered.
-errorCheck errorCheck(msgBuffer,errorBuffer, lidTemperature, heaterValues, startUpTime);
+errorCheck errorCheck(msgBuffer,errorBuffer, lidTemperature, heaterValues, startUpTime, doCheckGlass);
 
 parseSerial parseSerial(serialMain, heaterPID, heaterValues, msgBuffer, lidTemperature, enclosureTemperature, serialDisplayInterval);
 
@@ -291,7 +295,11 @@ void loop()
   }
   
   // Check to see if the glass setpoint needs to be updated, only if enclosureTemperature.valueSetpointReached is true
+
+  if (doCheckGlass) {
     CheckGlassSetpoint(enclosureTemperature, lidTemperature, lidThermistor,msgBuffer);
+  }
+    
 
 	
   // If the output from the PID is different from the previous output, adjust the pulse-width modulator duty cycle
