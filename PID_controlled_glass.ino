@@ -40,7 +40,7 @@
   generalSensor enclosureTemperature(35, "enclosure temperature", 22.0, 37.0, 20, 1000, 40.0, 20.0);
 
 //PIDextra(double aP, double aI, double aD, double aSetpoint, double amaxOutputNormal,double amaxOutputHigh, double errorOutput int aMode)
-  PIDextras heaterValues(2.0, 96.0, 600.0, lidTemperature.setpoint, 50.0,60.0,10.0,1);
+  PIDextras heaterValues(2.0, 96.0, 200.0, lidTemperature.setpoint, 50.0,60.0,10.0,1);
 
 String errorBuffer;
 String msgBuffer;
@@ -197,7 +197,7 @@ void loop()
 
     // Check to make sure the temperature data points makes sense, and reassign the value if necessary
     RemoveErroneousSensorReadings(lidTemperature,0.6,msgBuffer);
-    RemoveErroneousSensorReadings(enclosureTemperature,0.1,msgBuffer);
+    RemoveErroneousSensorReadings(enclosureTemperature,0.08,msgBuffer);
 
     // Log the temperatures and calculate slopes and MSE
     sensorUpdate(lidTemperature);

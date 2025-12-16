@@ -126,19 +126,30 @@ void RemoveErroneousSensorReadings(generalSensor &sensor, double tolerance, Stri
   double prev1Value = sensor.history[(sensor.index - 1 + sensor.historySize)%sensor.historySize]; 
   double prev2Value = sensor.history[(sensor.index - 2 + sensor.historySize)%sensor.historySize]; 
   double prev3Value = sensor.history[(sensor.index - 3 + sensor.historySize)%sensor.historySize]; 
-  //double currSlope = sensor.slope[(sensor.index - 1 + sensor.historySize)%sensor.historySize]; 
-  //if (currSlope >0.1) tolerance = 2.0 * tolerance;
+  double prev4Value = sensor.history[(sensor.index - 4 + sensor.historySize)%sensor.historySize]; 
+  double currSlope = sensor.slope[(sensor.index - 1 + sensor.historySize)%sensor.historySize]; 
+  if (currSlope >0.1) tolerance = 2.0 * tolerance;
+
+  double prev3Average = (prev1Value + prev2Value + prev3Value)/3; 
+
   
-  if ( (sensor.historyFilled == true) && (prev1Value != prev2Value) )
+  if ( (sensor.historyFilled == true) && (prev1Value != prev2Value) && (prev1Value != prev3Value) )
   {
-    if ( (abs(sensor.value - prev1Value) > tolerance) && (abs(sensor.value - prev2Value) > tolerance) ) 
+//    if ( (abs(sensor.value - prev1Value) > tolerance) && (abs(sensor.value - prev2Value) > tolerance) ) 
+//    {
+//      replaceValue = true;
+//    }
+
+    if  (abs(sensor.value - prev3Average) > tolerance)
     {
       replaceValue = true;
     }
+
   } else {
 
     //for the enclosure thermistor, sometimes two consecutive readings will end up being equal.  
-    if ( (abs(sensor.value - prev1Value) > tolerance*2.0) && (abs(sensor.value - prev2Value) > tolerance*2.0) ) 
+    //if ( (abs(sensor.value - prev3Average) > tolerance*2.0) && (abs(sensor.value - prev2Value) > tolerance*2.0) ) 
+    if ( abs(sensor.value - prev3Average) > tolerance*2.0) 
     {
       replaceValue = true;
     }
@@ -146,7 +157,7 @@ void RemoveErroneousSensorReadings(generalSensor &sensor, double tolerance, Stri
   }
 
   //need a catch to ensure thath the system doesn't lock into 1 value. 
-  if ( (prev1Value == prev3Value) && (prev2Value == prev3Value) ) {
+  if ( (prev1Value == prev2Value) && (prev1Value == prev3Value) && (prev1Value == prev4Value) ) {
     replaceValue = false;
   }
 
@@ -161,7 +172,8 @@ void RemoveErroneousSensorReadings(generalSensor &sensor, double tolerance, Stri
       msgBuffer += " & ";
       msgBuffer += String(prev2Value,3);
       msgBuffer += ". Reassigned to ";
-      sensor.value = (prev1Value + prev2Value)/2;
+      //sensor.value = (prev1Value + prev2Value)/2;
+      sensor.value = prev3Average;
       sensor.history[(sensor.index - 1 + sensor.historySize)%sensor.historySize] = sensor.value; 
       msgBuffer += sensor.value;
     
