@@ -34,6 +34,9 @@ class STEINHART {
 
   private:
     void Initialize();
+
+    void sortReadings(int arr[], int size);
+    
     //pointers to the Steinhart parameters
     //int analogPin;
     int myAnalogPin;

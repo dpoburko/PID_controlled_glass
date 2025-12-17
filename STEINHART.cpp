@@ -27,17 +27,37 @@ bool STEINHART::read() {
     thermistorReading = 0;
     double output;  
     thermistorVoltage = 0;       
-    
+    int readings[(int)nSamples];
+    int thisSample;
     if (deltaTime>sampleTime) {
         
         //measured voltage on analogIn pin several times to average noise
         for (int i = 0; i < nSamples; i++) {
           //thermistorReading += analogRead(myAnalogPin)/ nSamples;
-          thermistorVoltage += analogRead(myAnalogPin);
+          thisSample = analogRead(myAnalogPin);
+          //thermistorVoltage += analogRead(myAnalogPin);
+          thermistorVoltage += thisSample;
+          readings[i] = thisSample;
           delay(1);
         }
-        thermistorVoltage /= nSamples;
         
+        thermistorVoltage /= nSamples;
+        sortReadings(readings, (int)nSamples);
+        int median = readings[(int)nSamples / 2];
+        thermistorVoltage = median;
+      
+        float sum = 0.0;
+        int count = 0;
+      
+        for (int i = 0; i < (int)nSamples; i++) {
+          if (abs(readings[i] - median) <= 5) {
+            sum += readings[i];
+            count++;
+          }
+        }
+        thermistorVoltage = sum/count;
+        
+
       // Convert the thermistor voltage to resistance
         thermistorVoltage = 1023 / thermistorVoltage - 1;      
         thermistorVoltage = mySeriesResistor / thermistorVoltage; // R / Ro
@@ -83,6 +103,19 @@ void STEINHART::celciusOut(int Scale) {
     } else {
        inCelcius = false; 
     }
+}
+
+// Function to sort the readings array using bubble sort
+void STEINHART::sortReadings(int arr[], int size) {
+  for (int i = 0; i < size - 1; i++) {
+    for (int j = 0; j < size - i - 1; j++) {
+      if (arr[j] > arr[j + 1]) {
+        int temp = arr[j];
+        arr[j] = arr[j + 1];
+        arr[j + 1] = temp;
+      }
+    }
+  }
 }
 
 long STEINHART::getNominalResistance() {return myThermistorResistance; }

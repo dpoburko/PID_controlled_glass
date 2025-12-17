@@ -170,6 +170,23 @@ void setup()
   lidTemperature.setpointInterval = 30000;
   lidTemperature.setpointLastUpdate = 0;
 
+  //update temps with current temps to ensure that current values are accurate
+    // Log the temperatures and calculate slopes and MSE
+    delay(2500);
+    if (steinhardt1.read()==true) {
+      sensorUpdate(lidTemperature);
+    }
+    if (steinhardt2.read()==true) {
+      sensorUpdate(enclosureTemperature);
+    }
+    delay(2500);
+    if (steinhardt1.read()==true) {
+      sensorUpdate(lidTemperature);
+    }
+    if (steinhardt2.read()==true) {
+      sensorUpdate(enclosureTemperature);
+    }
+
   heaterValues.maxInput = buckConverterVoltage;
 
   startUpTime = millis();
@@ -197,7 +214,7 @@ void loop()
 
     // Check to make sure the temperature data points makes sense, and reassign the value if necessary
     RemoveErroneousSensorReadings(lidTemperature,0.6,msgBuffer);
-    RemoveErroneousSensorReadings(enclosureTemperature,0.08,msgBuffer);
+    RemoveErroneousSensorReadings(enclosureTemperature,0.1,msgBuffer);
 
     // Log the temperatures and calculate slopes and MSE
     sensorUpdate(lidTemperature);
