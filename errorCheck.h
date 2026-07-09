@@ -19,7 +19,7 @@ class errorCheck {
   public:
   
     //need to pass the lidPID structure, the lid structure, and msgBuffer
-    errorCheck(String& amsgBuffer,String& aerrorBuffer ,generalSensor& alidTemperature, PIDextras& aheaterValues, long& astartUpTime, bool& aDoCheckGlass);
+    errorCheck(String& amsgBuffer,String& aerrorBuffer ,generalSensor& alidTemperature, PIDextras& aheaterValues, long& astartUpTime);
     
     //these public variables should be accessible to the sketch as 
     int errorCode;
@@ -37,7 +37,6 @@ class errorCheck {
     int newError;
     generalSensor* lidTemperature;
     PIDextras* heaterValues;
-    bool& doCheckGlass;
 
 }; //close heaterStatus class
 #endif

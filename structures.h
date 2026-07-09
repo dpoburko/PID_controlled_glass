@@ -9,11 +9,9 @@
 // PWM PID output pin to MOSFET (adjust as needed)
 #define PWMPINOUT 9
 // Thermistor 1 pin
-#define THERMISTOR1PIN A0
+#define THERMISTOR1PIN A1
 // Thermistor 2 pin
-#define THERMISTOR2PIN A4
-
-
+#define THERMISTOR2PIN A0
 
 // must be intialized with the maxlength (e.g. serialMsg serial(25);)
 struct serialMsg{
@@ -88,7 +86,7 @@ struct thermistor
   thermistor(String thisName, byte thisPin, double thisrNominal = 10000, double thisrSeries = 9985, double thistNominal = 25.0, double thisCoef = 3435) :
    name(thisName), pin(thisPin), rNominal(thisrNominal), rSeries(thisrSeries), tNominal(thistNominal), bCoefficient(thisCoef)
   {
-    maxAutoIncrease = 10;    
+    maxAutoIncrease = 5;    
     cummSetpointChange = 0; 
     autoSetpointChange = 0; 
   }
@@ -121,14 +119,12 @@ struct generalSensor {
     int setpointInterval = 150000;
     // Variable to store when the last glass setpoint update happened
     int setpointLastUpdate = 0;
-    
 
     //These will be arrays that need to be defined at instantiation, so in the constructor
     double* history;
     double* slope;
     double* time;
     double* errorHistory; //mean square error array
-    bool* replaced;
     
     // Constructor to initialize size and allocate the array for history
     generalSensor(int arraySize, String aName = "sensor", double initVal = 0.0, float initSP = 0.0, int initSI = 5, long initSU = 1000, 
@@ -139,13 +135,11 @@ struct generalSensor {
       slope = new double[historySize];
       time = new double[historySize];
       errorHistory = new double[historySize];
-      replaced = new bool[historySize];
       for (int i=0;i<historySize;i++) {
         history[i] = 0;
         slope[i] = 0;
         time[i] = millis();
         errorHistory[i] = 0;
-        replaced[i] = false;
       }
       setpointReached = false;
       setpointNoted = false; 

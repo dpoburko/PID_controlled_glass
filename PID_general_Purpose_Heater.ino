@@ -36,11 +36,11 @@
 // PID CONTROLLER VARIABLES
 // *************************************************************************************************************************************
 //generalSensor thisSensor(int arraySize, "name", value, setpoint, slopeInterval, slopeUnits(), upperLimit, lowerLimit) : 
-  generalSensor lidTemperature(35, "lid temperature",22.0,58.0,10,1000,65.0,20.0);
-  generalSensor enclosureTemperature(35, "enclosure temperature", 22.0, 37.0, 20, 1000, 40.0, 20.0);
+  generalSensor lidTemperature(30, "lid temperature",22.0,48.0,10,1000,45.0,20.0);
+  generalSensor enclosureTemperature(30, "enclosure temperature", 22.0, 37.0, 20, 1000, 40.0, 20.0);
 
 //PIDextra(double aP, double aI, double aD, double aSetpoint, double amaxOutputNormal,double amaxOutputHigh, double errorOutput int aMode)
-  PIDextras heaterValues(2.0, 96.0, 200.0, lidTemperature.setpoint, 50.0,60.0,10.0,1);
+  PIDextras heaterValues(2.0, 96.0, 21.0, lidTemperature.setpoint, 40.0,90.0,10.0,1);
 
 String errorBuffer;
 String msgBuffer;
@@ -91,23 +91,19 @@ double buckConverterVoltage = 0;
 // Data logging
 uint16_t nLogged = 0;
 
-// Boolean toggle to enable/disalbe CheckGlassSetPoitn
-bool doCheckGlass = true;
-
-
 // *************************************************************************************************************************************
 // CONSTRUCTORS
 // *************************************************************************************************************************************
 
 // Create thermistor object, including relevant information about the thermistor and the required constants for the Steinhart equation
-STEINHART steinhardt1(lidThermistor.pin, &lidTemperature.value, lidThermistor.rNominal, lidThermistor.tNominal, lidThermistor.bCoefficient, lidThermistor.rSeries);
-STEINHART steinhardt2(enclosureThermistor.pin, &enclosureTemperature.value, enclosureThermistor.rNominal, enclosureThermistor.tNominal, enclosureThermistor.bCoefficient, enclosureThermistor.rSeries);
+STEINHART steinhardt1(lidThermistor.pin, &lidTemperature.value, lidThermistor.rNominal, lidThermistor.tNominal, lidThermistor.bCoefficient, lidThermistor.rSeries,false);
+STEINHART steinhardt2(enclosureThermistor.pin, &enclosureTemperature.value, enclosureThermistor.rNominal, enclosureThermistor.tNominal, enclosureThermistor.bCoefficient, enclosureThermistor.rSeries,false);
 
 // Create PID controller for the glass, including relevant information for the PID such as input, output, setpoint, and constants
 PID heaterPID(&lidTemperature.value, &heaterValues.outputFromPID, &lidTemperature.setpoint, heaterValues.P, heaterValues.I, heaterValues.D, DIRECT);
 
 //instantiate the errorCheck library with references to needed variables. Note that errorCodes is a global variable, so does not need to be transfered.
-errorCheck errorCheck(msgBuffer,errorBuffer, lidTemperature, heaterValues, startUpTime, doCheckGlass);
+errorCheck errorCheck(msgBuffer,errorBuffer, lidTemperature, heaterValues, startUpTime);
 
 parseSerial parseSerial(serialMain, heaterPID, heaterValues, msgBuffer, lidTemperature, enclosureTemperature, serialDisplayInterval);
 
@@ -170,28 +166,11 @@ void setup()
   lidTemperature.setpointInterval = 30000;
   lidTemperature.setpointLastUpdate = 0;
 
-  //update temps with current temps to ensure that current values are accurate
-    // Log the temperatures and calculate slopes and MSE
-    delay(2500);
-    if (steinhardt1.read()==true) {
-      sensorUpdate(lidTemperature);
-    }
-    if (steinhardt2.read()==true) {
-      sensorUpdate(enclosureTemperature);
-    }
-    delay(2500);
-    if (steinhardt1.read()==true) {
-      sensorUpdate(lidTemperature);
-    }
-    if (steinhardt2.read()==true) {
-      sensorUpdate(enclosureTemperature);
-    }
-
   heaterValues.maxInput = buckConverterVoltage;
 
   startUpTime = millis();
 
-  pidTimer.active = false;
+  pidTimer.active = true;
   pidTimer.start = millis();
   
 }
@@ -213,8 +192,8 @@ void loop()
     GetBuckConverterVoltage(heaterValues.maxInput,resistor1Coefficient ,resistor2Coefficient, boardVoltageOut); //by storing the current voltage in this structure, it become accessible to errorCheck
 
     // Check to make sure the temperature data points makes sense, and reassign the value if necessary
-    RemoveErroneousSensorReadings(lidTemperature,0.6,msgBuffer);
-    RemoveErroneousSensorReadings(enclosureTemperature,0.1,msgBuffer);
+    RemoveErroneousSensorReadings(lidTemperature,0.25,msgBuffer);
+    RemoveErroneousSensorReadings(enclosureTemperature,0.25,msgBuffer);
 
     // Log the temperatures and calculate slopes and MSE
     sensorUpdate(lidTemperature);
@@ -312,11 +291,7 @@ void loop()
   }
   
   // Check to see if the glass setpoint needs to be updated, only if enclosureTemperature.valueSetpointReached is true
-
-  if (doCheckGlass) {
     CheckGlassSetpoint(enclosureTemperature, lidTemperature, lidThermistor,msgBuffer);
-  }
-    
 
 	
   // If the output from the PID is different from the previous output, adjust the pulse-width modulator duty cycle

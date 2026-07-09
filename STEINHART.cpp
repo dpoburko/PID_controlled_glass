@@ -5,7 +5,7 @@
 
 //need to think through what needs to use pointers etc
 //Constructor
-STEINHART::STEINHART(int analogPin, double* steinhartOut, long thermistoResistance, long thermistorNominalTemp, long bCoefficient, long seriesResistor) {
+STEINHART::STEINHART(int analogPin, double* steinhartOut, long thermistoResistance, long thermistorNominalTemp, long bCoefficient, long seriesResistor, bool pullUp) {
     
     myAnalogPin = analogPin;
     mySteinhartOut = steinhartOut;
@@ -13,6 +13,7 @@ STEINHART::STEINHART(int analogPin, double* steinhartOut, long thermistoResistan
     myThermistorNominalTemp = thermistorNominalTemp;
     myBCoefficient = bCoefficient ;
     mySeriesResistor = seriesResistor;
+    myPullUp = pullUp;
     inCelcius = true;
     nSamples = 11.0; //doule to allow decimal average
     sampleTime = 500;  
@@ -27,39 +28,24 @@ bool STEINHART::read() {
     thermistorReading = 0;
     double output;  
     thermistorVoltage = 0;       
-    int readings[(int)nSamples];
-    int thisSample;
+    
     if (deltaTime>sampleTime) {
         
         //measured voltage on analogIn pin several times to average noise
         for (int i = 0; i < nSamples; i++) {
           //thermistorReading += analogRead(myAnalogPin)/ nSamples;
-          thisSample = analogRead(myAnalogPin);
-          //thermistorVoltage += analogRead(myAnalogPin);
-          thermistorVoltage += thisSample;
-          readings[i] = thisSample;
+          thermistorVoltage += analogRead(myAnalogPin);
           delay(1);
         }
-        
         thermistorVoltage /= nSamples;
-        sortReadings(readings, (int)nSamples);
-        int median = readings[(int)nSamples / 2];
-        thermistorVoltage = median;
-      
-        float sum = 0.0;
-        int count = 0;
-      
-        for (int i = 0; i < (int)nSamples; i++) {
-          if (abs(readings[i] - median) <= 5) {
-            sum += readings[i];
-            count++;
-          }
-        }
-        thermistorVoltage = sum/count;
         
-
       // Convert the thermistor voltage to resistance
-        thermistorVoltage = 1023 / thermistorVoltage - 1;      
+
+        if (myPullUp) {
+          thermistorVoltage = 1023 / thermistorVoltage - 1;      
+        } else {
+          thermistorVoltage = thermistorVoltage/(1023 - thermistorVoltage);      
+        }
         thermistorVoltage = mySeriesResistor / thermistorVoltage; // R / Ro
         output = thermistorVoltage / myThermistorResistance;         // ln(R / Ro)
         output = log(output);          // 1 / B * ln(R / Ro)
@@ -103,19 +89,6 @@ void STEINHART::celciusOut(int Scale) {
     } else {
        inCelcius = false; 
     }
-}
-
-// Function to sort the readings array using bubble sort
-void STEINHART::sortReadings(int arr[], int size) {
-  for (int i = 0; i < size - 1; i++) {
-    for (int j = 0; j < size - i - 1; j++) {
-      if (arr[j] > arr[j + 1]) {
-        int temp = arr[j];
-        arr[j] = arr[j + 1];
-        arr[j + 1] = temp;
-      }
-    }
-  }
 }
 
 long STEINHART::getNominalResistance() {return myThermistorResistance; }

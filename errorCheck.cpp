@@ -16,8 +16,8 @@ errorCode errorCodes[numberOfErrorCodes];
 //Constructor:
 //Note that the String variables can be used directly a reference, and don't need to be converted to pointere. Hence msgBuffer(amsgBuffer) not msgBuffer(&amsgBuffer)
 
-errorCheck::errorCheck(String& amsgBuffer,String& aerrorBuffer, generalSensor& alidTemperature, PIDextras& aheaterValues, long& astartUpTime, bool& aDoCheckGlass):
-    msgBuffer(amsgBuffer),errorBuffer (aerrorBuffer),  lidTemperature(&alidTemperature), heaterValues(&aheaterValues), startUpTime(astartUpTime), doCheckGlass(aDoCheckGlass) 
+errorCheck::errorCheck(String& amsgBuffer,String& aerrorBuffer, generalSensor& alidTemperature, PIDextras& aheaterValues, long& astartUpTime):
+    msgBuffer(amsgBuffer),errorBuffer (aerrorBuffer),  lidTemperature(&alidTemperature), heaterValues(&aheaterValues), startUpTime(astartUpTime)
 {
 }
 
@@ -70,7 +70,7 @@ void errorCheck::update() {
   int newError = 0;
   
   // ERROR1: Check if thermistor is not connected. Temp will read as -273C
-  if (lidTemperature->value < 15) 
+  if (lidTemperature->value < 0) 
   {
     // If error is silenced,when errorCheck.update() is called, the current output will not be modified 
     // This can't be placed in the initial if statement, because that would result in the 'else' action
@@ -205,7 +205,7 @@ void errorCheck::update() {
         if (!errorCodes[4].buffered) {
           errorCodes[4].buffered = true;
           errorBuffer += newError;
-          errorBuffer += " Under-powered. Recoomend increase max output.";      
+          errorBuffer += " Under-powered. Increase max output.";      
         }
 
       }    
@@ -250,7 +250,7 @@ void errorCheck::update() {
   } // if lidTemperature->historyFilled
 
   //ERROR6: No heater power - i.e. voltage in = 0
-  if (heaterValues->maxInput < 5) 
+  if (heaterValues->maxInput < 1) 
   {
     // If error is silenced,when errorCheck.update() is called, the current output will not be modified 
     // This can't be placed in the initial if statement, because that would result in the 'else' action
@@ -264,7 +264,6 @@ void errorCheck::update() {
       if (!errorCodes[6].active) {
         errorCodes[6].active = true;
         errorCodes[6].startTimer = millis();
-        doCheckGlass = false;
       }
       
       //manage buffering the error codes
@@ -280,8 +279,6 @@ void errorCheck::update() {
     if (errorCodes[6].active) {
       errorCodes[6].active = false;
       errorCodes[6].buffered = false;
-      doCheckGlass = true;
-      
     }
   }
 

@@ -13,10 +13,10 @@ class STEINHART {
   //constants used in functions
   #define CELCIUS 1
   #define FARENHEIT 0
-  
+  #define PULLUP 1
 
     //constructor, needs analog in PIN, temperature out, nomimal thermistor resistance, nominal temp (C), B coeeficient, series resistor 
-    STEINHART(int, double*, long, long, long,long);
+    STEINHART(int, double*, long, long, long,long,bool);
       
     bool read(); //performs calculation from current voltage input
 
@@ -34,11 +34,7 @@ class STEINHART {
 
   private:
     void Initialize();
-
-    void sortReadings(int arr[], int size);
-    
     //pointers to the Steinhart parameters
-    //int analogPin;
     int myAnalogPin;
     double *mySteinhartOut;
     long myThermistorResistance; 
@@ -46,6 +42,7 @@ class STEINHART {
     long myBCoefficient;
     double  nSamples;
     double mySeriesResistor;
+    bool myPullUp;
 
     unsigned long prevTime;
     unsigned long sampleTime;

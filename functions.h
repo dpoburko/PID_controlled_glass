@@ -91,19 +91,12 @@ void CheckGlassSetpoint(generalSensor &enclosureTemperature, generalSensor &lidT
 
       lidTemperature.setpoint += lidThermistor.autoSetpointChange;
 
-      if (lidTemperature.setpoint > lidTemperature.upperLimit ) {
-        lidTemperature.setpoint = lidTemperature.upperLimit;
-        lidThermistor.cummSetpointChange = lidThermistor.maxAutoIncrease;
-        lidThermistor.autoSetpointChange = 0;
-      }
-
       // Update the last glass setpoint update time to the current time
       lidTemperature.setpointLastUpdate = currentTimeMilliseconds;
 
       if (lidThermistor.autoSetpointChange != 0.0) {
         // Send a message to the serial
         msgBuffer += "Glass Setpoint updated to ";
-        
         msgBuffer += String(lidTemperature.setpoint);
       }
     }
@@ -121,78 +114,27 @@ void RemoveErroneousSensorReadings(generalSensor &sensor, double tolerance, Stri
 {
   // Calculate difference between current glass temperature and previous glass temperature reading
   //Since glassTemperatureHistory is a circular buffer, we access the values 1 and 2 indices before the current historyArraysIndex
-
-  bool replaceValue = false;
-  double prev1Value = sensor.history[(sensor.index - 1 + sensor.historySize)%sensor.historySize]; 
-  double prev2Value = sensor.history[(sensor.index - 2 + sensor.historySize)%sensor.historySize]; 
-  double prev3Value = sensor.history[(sensor.index - 3 + sensor.historySize)%sensor.historySize]; 
-  double prev4Value = sensor.history[(sensor.index - 4 + sensor.historySize)%sensor.historySize]; 
-  double currSlope = sensor.slope[(sensor.index - 1 + sensor.historySize)%sensor.historySize]; 
-  if (currSlope > 0.1) tolerance = 2.0 * tolerance;
-
-  double prev3Average = (prev1Value + prev2Value + prev3Value)/3; 
-  double prev2Average = (prev1Value + prev2Value)/2; 
-
-  bool prev1replaced = sensor.replaced[(sensor.index - 1 + sensor.historySize)%sensor.historySize]; 
-  bool prev2replaced = sensor.replaced[(sensor.index - 2 + sensor.historySize)%sensor.historySize]; 
-  bool prev3replaced = sensor.replaced[(sensor.index - 3 + sensor.historySize)%sensor.historySize]; 
-  
-  
-  //if ( (sensor.historyFilled == true) && ((!prev1replaced) && (!prev2replaced)) ){
-    
-    if ( (sensor.historyFilled == true) && (prev1Value != prev2Value) ) {
-    
-  //    if ( (abs(sensor.value - prev1Value) > tolerance) && (abs(sensor.value - prev2Value) > tolerance) ) 
-  //    {
-  //      replaceValue = true;
-  //    }
-  
-      if  (abs(sensor.value - prev2Average) > tolerance)
-      {
-        replaceValue = true;
-      }
-  
-    } else if ( abs(sensor.value - prev2Average) > tolerance*2.0) {
-  
-      //for the enclosure thermistor, sometimes two consecutive readings will end up being equal.  
-      //if ( (abs(sensor.value - prev3Average) > tolerance*2.0) && (abs(sensor.value - prev2Value) > tolerance*2.0) ) 
-        replaceValue = true;
-    }
-    
-    if ( (prev1Value == prev2Value) && (prev1Value == prev3Value)) { 
-  
-      //need a catch to ensure thath the system doesn't lock into 1 value. 
-        replaceValue = false;
-     
-    }
-    if ( (prev1replaced == true) && (prev2replaced == true)) { 
-  
-      //need a catch to ensure thath the system doesn't lock into 1 value. 
-        replaceValue = false;
-     
-    }
-
-    
-  //}
-
-
-  if (replaceValue==true) {
+  if ( (sensor.historyFilled == true) && (sensor.history[(sensor.index - 1 + sensor.historySize)%sensor.historySize] != sensor.history[(sensor.index - 2 + sensor.historySize)%sensor.historySize]) )
+  {
+    double prev1Value = sensor.history[(sensor.index - 1 + sensor.historySize)%sensor.historySize]; 
+    double prev2Value = sensor.history[(sensor.index - 2 + sensor.historySize)%sensor.historySize]; 
+    if ( (abs(sensor.value - prev1Value) > tolerance) && (abs(sensor.value - prev2Value) > tolerance) ) 
+    {
       // Send a message to the serial
       msgBuffer += "Erroneous ";
       msgBuffer += sensor.name;
-      msgBuffer += ": ";
+      msgBuffer += " reading of ";
       msgBuffer += sensor.value;
       msgBuffer += " vs ";
-      msgBuffer += String(prev1Value,3);
+      msgBuffer += String(prev1Value,2);
       msgBuffer += " & ";
-      msgBuffer += String(prev2Value,3);
-      msgBuffer += ". Now ";
-      //sensor.value = (prev1Value + prev2Value)/2;
-      sensor.value = prev2Average;
-      //sensor.history[(sensor.index - 1 + sensor.historySize)%sensor.historySize] = sensor.value; 
-      sensor.replaced[sensor.index] = true; 
+      msgBuffer += String(prev2Value,2);
+      msgBuffer += ". Reassigned to ";
+      sensor.value = (prev1Value + prev2Value)/2;
+      sensor.history[(sensor.index - 1 + sensor.historySize)%sensor.historySize] = sensor.value; 
       msgBuffer += sensor.value;
-    
+      
+    }
   }
  
 }
@@ -279,12 +221,9 @@ void sensorUpdate(generalSensor& sensor) {
 void PrintParametersToSerial(generalSensor &enclosureTemperature, generalSensor &lidTemperature, PIDextras &heaterValues, String &msgBuffer,String &errorBuffer,String &logBuffer,uint16_t &nLogged )
 {
 
-//Note that it's not really practical to log date and time before and RTC is working into this project.
-
-
   if (nLogged == 0) {
     Serial.println(" ");
-    logBuffer += "\tT(enclosure):\tT(lid):\tT(encl.slope):\tT(lid.slope):\tT(mse):\tsetPt(lid):\tsetPt(enclosure):\tPWMOut:\tV(in):\tPID:\tError:\tMsg:";
+    logBuffer += "\tT(enclosure):\tT(lid):\tT(encl.slope):\tT(lidTemperature.slope):\tT(mse):\tsetPt(lid):\tsetPt(enclosure):\tPWMOut:\tV(in):\tPID:\tError:\tMsg:";
     Serial.println(logBuffer);
     logBuffer = "";
   }
@@ -297,7 +236,7 @@ void PrintParametersToSerial(generalSensor &enclosureTemperature, generalSensor 
 
   logBuffer = "";
   logBuffer += "\t";
-  logBuffer += String(enclosureTemperature.value, 3);
+  logBuffer += String(enclosureTemperature.value, 2);
   logBuffer += "\t";
   logBuffer += String(lidTemperature.value, 2);
   logBuffer += "\t";

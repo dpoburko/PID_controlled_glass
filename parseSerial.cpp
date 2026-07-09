@@ -251,9 +251,6 @@
 
       int seconds = atoi(tmr);                // Convert to int
       *serialDisplayInterval = seconds * 1000; // Convert to milliseconds
-      if (*serialDisplayInterval <  2000){
-        *serialDisplayInterval =  2000;
-      }
           
     } 
     else if(serialMain->incoming[0] == 'E' && serialMain->incoming[1] == 'a' )
